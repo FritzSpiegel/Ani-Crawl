@@ -1,0 +1,50 @@
+# --- Node ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+.pnpm-debug.log*
+
+# --- Build Artefacts ---
+dist/
+build/
+.tmp/
+.temp/
+.cache/
+vite.svg
+
+# --- Env / Secrets ---
+.env
+.env.*
+client/.env
+server/.env
+
+# --- Editor / OS ---
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.iml
+
+# --- Tests / Coverage ---
+coverage/
+.junit/
+.sonar/
+.logs/
+logs/
+*.log
+
+# --- Local DB / uploads ---
+server/data.db
+server/data.db-*
+uploads/
+storage/
+
+# --- Misc ---
+*.local
+*.swp
+*.swo
+.history/

@@ -1,59 +1,35 @@
-import { useState } from 'react';
-import Header from '../components/Header.jsx';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
-import '../styles/Auth.css';
-
-const ERRMAP = {
-    EMAIL_EXISTS: 'Diese E-Mail ist bereits registriert.',
-    NETWORK: 'Server nicht erreichbar. Läuft der Auth-Server auf http://localhost:4000?'
-};
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Header from "../components/Header.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function Register() {
     const nav = useNavigate();
     const { register } = useAuth();
-    const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
-    const [err, setErr] = useState(''); const [loading, setLoading] = useState(false);
-    function onChange(e) { setForm(p => ({ ...p, [e.target.name]: e.target.value })); }
-    function validate() {
-        if (!form.firstName.trim()) return 'Vorname fehlt.';
-        if (!form.lastName.trim()) return 'Nachname fehlt.';
-        if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return 'E-Mail ist ungültig.';
-        if (form.password.length < 6) return 'Passwort muss mind. 6 Zeichen haben.';
-        return '';
-    }
+    const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "" });
+    const [err, setErr] = useState("");
+
     async function onSubmit(e) {
         e.preventDefault();
-        const v = validate(); if (v) return setErr(v);
-        setErr(''); setLoading(true);
-        try {
-            const res = await register(form); // devCode landet in sessionStorage
-            nav(`/verify?email=${encodeURIComponent(res.email)}`);
-        } catch (e) { setErr(ERRMAP[e.code] || e.message || 'Registrierung fehlgeschlagen.'); }
-        finally { setLoading(false); }
+        try { const r = await register(form); nav(`/verify?email=${encodeURIComponent(r.email)}`); }
+        catch { setErr("Registrierung fehlgeschlagen."); }
     }
+
     return (
         <div>
             <Header />
-            <main className="container auth-page">
-                <div className="auth-card">
-                    <h1 className="auth-title">Registrieren</h1>
-                    <form className="auth-form" onSubmit={onSubmit}>
-                        <div className="form-row form-row--grid">
-                            <div><label className="label" htmlFor="firstName">Vorname</label>
-                                <input id="firstName" name="firstName" className="input" value={form.firstName} onChange={onChange} /></div>
-                            <div><label className="label" htmlFor="lastName">Nachname</label>
-                                <input id="lastName" name="lastName" className="input" value={form.lastName} onChange={onChange} /></div>
-                        </div>
-                        <div className="form-row"><label className="label" htmlFor="email">E-Mail</label>
-                            <input id="email" name="email" type="email" className="input" value={form.email} onChange={onChange} /></div>
-                        <div className="form-row"><label className="label" htmlFor="password">Passwort</label>
-                            <input id="password" name="password" type="password" className="input" value={form.password} onChange={onChange} /></div>
-                        {err && <div className="error">{err}</div>}
-                        <div className="actions"><button className="button button--primary" type="submit" disabled={loading}>{loading ? 'Bitte warten…' : 'Konto erstellen'}</button></div>
-                        <div className="hint">Du erhältst einen 6-stelligen Code per E-Mail.</div>
-                    </form>
-                </div>
+            <main className="container" style={{ padding: "32px 0" }}>
+                <h1 className="page-title">Registrieren</h1>
+                <form onSubmit={onSubmit} className="details__meta" style={{ maxWidth: 520 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <label>Vorname<input className="header-search__input" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, firstName: e.target.value })} /></label>
+                        <label>Nachname<input className="header-search__input" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, lastName: e.target.value })} /></label>
+                    </div>
+                    <label>E-Mail<input className="header-search__input" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
+                    <label>Passwort<input type="password" className="header-search__input" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
+                    {err && <div style={{ color: '#ff6b6b', fontWeight: 700 }}>{err}</div>}
+                    <div className="cta-row"><button className="btn btn--primary" type="submit">Registrieren</button></div>
+                </form>
             </main>
         </div>
     );
