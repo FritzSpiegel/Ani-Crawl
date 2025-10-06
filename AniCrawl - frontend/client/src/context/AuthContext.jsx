@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus, authMe } from "../services/auth";
+=======
+import { createContext, useContext, useMemo, useState } from "react";
+import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus } from "../services/auth";
+>>>>>>> branch,-zum-zeigen-heute
 
 const Ctx = createContext(null);
 
@@ -13,6 +18,7 @@ export function AuthProvider({ children }) {
         catch { return false; }
     });
 
+<<<<<<< HEAD
     // Try to validate existing cookie on mount
     const [bootstrapped, setBootstrapped] = useState(false);
     useEffect(() => {
@@ -37,6 +43,11 @@ export function AuthProvider({ children }) {
         user,
         isAdmin,
         bootstrapped,
+=======
+    const api = useMemo(() => ({
+        user,
+        isAdmin,
+>>>>>>> branch,-zum-zeigen-heute
         async login(payload) {
             const r = await authLogin(payload);
             if (r?.user) {

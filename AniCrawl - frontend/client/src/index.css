@@ -557,6 +557,7 @@ body {
     color: #e5e7eb;
 }
 
+<<<<<<< HEAD
 /* Cleaner spacing & typography */
 main.container {
     padding-top: 28px;
@@ -583,6 +584,8 @@ h1, h2, h3 {
     gap: 6px;
 }
 
+=======
+>>>>>>> branch,-zum-zeigen-heute
 /* Tables */
 .table {
     width: 100%;

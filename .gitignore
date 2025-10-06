@@ -1,0 +1,72 @@
+# --------------------------------------------------
+# Global
+# --------------------------------------------------
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!*.example
+.cache/
+.tmp/
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editors/IDE
+.idea/
+.vscode/
+.history/
+
+# Node & package managers
+node_modules/
+**/node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build outputs
+dist/
+build/
+coverage/
+.vite/
+**/.vite/
+.parcel-cache/
+**/.parcel-cache/
+.next/
+out/
+
+# Vite/React specific
+**/client/dist/
+**/client/.vite/
+
+# Server artifacts
+**/server/*.log
+**/server/*.pid
+**/server/*.pid.*
+**/server/*.seed
+
+# Local databases (SQLite)
+**/server/*.db
+**/server/*.db-*
+**/server/*.db-shm
+**/server/*.db-wal
+
+# OS
+ehthumbs.db
+Icon?
+
+# Runtime dumps
+*.stackdump
+*.dump
+
+# Misc
+.vercel/
+.netlify/
+.firebase/
+firebase-debug.log
+now.json
+
+
