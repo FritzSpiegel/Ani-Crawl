@@ -19,23 +19,6 @@ export async function authRegister(payload) {
 
 export async function authLogin(payload) {
     return await apiRequest('/auth/login', { method: 'POST', body: payload });
-<<<<<<< HEAD
-}
-
-export async function authLogout() {
-    return await apiRequest('/auth/logout', { method: 'POST' });
-}
-
-export async function authMe() {
-    try {
-        const r = await apiRequest('/auth/me');
-        return r;
-    } catch {
-        return { ok: false };
-    }
-}
-
-=======
 }
 
 export async function authLogout() {
@@ -43,8 +26,6 @@ export async function authLogout() {
 }
 
 // removed authMe for the requested rollback point
-
->>>>>>> branch,-zum-zeigen-heute
 export async function authVerifyCode({ email, code }) {
     return await apiRequest('/auth/verify-code', { method: 'POST', body: { email, code } });
 }

@@ -4,29 +4,9 @@ import { adminUsers, adminDeleteUser } from "../services/auth.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 export default function Admin() {
-<<<<<<< HEAD
-    const { isAdmin, login } = useAuth();
-    const [form, setForm] = useState({ email: "", password: "" });
-    const [users, setUsers] = useState([]);
-    const [err, setErr] = useState("");
-
-    async function onSubmit(e) {
-        e.preventDefault();
-        setErr("");
-        try {
-            const r = await login(form);
-            if (!r?.isAdmin) { setErr("Kein Admin-Konto."); }
-        } catch (e) {
-            setErr(e?.response?.message || "Login fehlgeschlagen.");
-        }
-    }
-
-=======
     const { isAdmin } = useAuth();
     const [users, setUsers] = useState([]);
     const [err, setErr] = useState("");
-
->>>>>>> branch,-zum-zeigen-heute
     useEffect(() => {
         if (!isAdmin) return;
         let mounted = true;
@@ -53,19 +33,6 @@ export default function Admin() {
                 <h1 className="page-title">Admin</h1>
                 {!isAdmin ? (
                     <div className="card card--centered">
-<<<<<<< HEAD
-                        <form onSubmit={onSubmit} className="details__meta">
-                            <div className="auth-header">
-                                <h2 className="auth-title">Admin Login</h2>
-                                <div className="auth-subtitle">Nur für Administratoren</div>
-                            </div>
-                            <label>E-Mail<input className="header-search__input input--lg" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
-                            <label>Passwort<input type="password" className="header-search__input input--lg" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
-                            {err && <div className="alert alert--error">{err}</div>}
-                            <div className="cta-row"><button className="btn btn--primary" type="submit">Anmelden</button></div>
-                            <div className="admin-login__hint">Standard: <b>Admin@Mail</b> / <b>password</b> (änderbar über .env)</div>
-                        </form>
-=======
                         <div className="details__meta">
                             <div className="auth-header">
                                 <h2 className="auth-title">Admin-Bereich</h2>
@@ -73,7 +40,6 @@ export default function Admin() {
                             </div>
                             {err && <div className="alert alert--error">{err}</div>}
                         </div>
->>>>>>> branch,-zum-zeigen-heute
                     </div>
                 ) : (
                     <div>

@@ -26,19 +26,6 @@ export default function Home() {
     return (
         <div>
             <Header />
-<<<<<<< HEAD
-            <section className="section">
-                <div className="container"><h2 className="headline-recs">Schwärzlers Empfehlungen</h2></div>
-                <div className="container recs-grid">
-                    <Link to={`/anime/${recs[0].id}`} className="recs-card recs-a"><img className="recs-card__img" src={recs[0].img} alt="" /><div className="recs-card__title">{recs[0].title}</div></Link>
-                    <Link to={`/anime/${recs[2].id}`} className="recs-card recs-b"><img className="recs-card__img" src={recs[2].img} alt="" /><div className="recs-card__title recs-card__title--big">{recs[2].title}</div></Link>
-                    <Link to={`/anime/${recs[3].id}`} className="recs-card recs-c"><img className="recs-card__img" src={recs[3].img} alt="" /><div className="recs-card__title">{recs[3].title}</div></Link>
-                    <Link to={`/anime/${recs[1].id}`} className="recs-card recs-d"><img className="recs-card__img" src={recs[1].img} alt="" /><div className="recs-card__title">{recs[1].title}</div></Link>
-                    <Link to={`/anime/${recs[4].id}`} className="recs-card recs-e"><img className="recs-card__img" src={recs[4].img} alt="" /><div className="recs-card__title">{recs[4].title}</div></Link>
-                    <Link to={`/anime/${recs[5].id}`} className="recs-card recs-f"><img className="recs-card__img" src={recs[5].img} alt="" /><div className="recs-card__title">{recs[5].title}</div></Link>
-                </div>
-            </section>
-=======
 
 			{/* Schwärzlers Empfehlungen */}
 			<section className="section">
@@ -92,7 +79,6 @@ export default function Home() {
 					</div>
 				</div>
 			</section>
->>>>>>> branch,-zum-zeigen-heute
 
             <main className="container" style={{ padding: "24px 0 96px" }}>
                 <h3 className="section-title">Alle Titel</h3>

@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-import { createContext, useContext, useMemo, useState, useEffect } from "react";
-import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus, authMe } from "../services/auth";
-=======
 import { createContext, useContext, useMemo, useState } from "react";
 import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus } from "../services/auth";
->>>>>>> branch,-zum-zeigen-heute
 
 const Ctx = createContext(null);
 
@@ -18,36 +13,9 @@ export function AuthProvider({ children }) {
         catch { return false; }
     });
 
-<<<<<<< HEAD
-    // Try to validate existing cookie on mount
-    const [bootstrapped, setBootstrapped] = useState(false);
-    useEffect(() => {
-        (async () => {
-            const r = await authMe();
-            if (r?.ok && r.user) {
-                localStorage.setItem("anicrawl_user", JSON.stringify(r.user));
-                localStorage.setItem("anicrawl_is_admin", JSON.stringify(Boolean(r.admin)));
-                setUser(r.user);
-                setIsAdmin(Boolean(r.admin));
-            } else {
-                localStorage.removeItem("anicrawl_user");
-                localStorage.removeItem("anicrawl_is_admin");
-                setUser(null);
-                setIsAdmin(false);
-            }
-            setBootstrapped(true);
-        })();
-    }, []);
-
     const api = useMemo(() => ({
         user,
         isAdmin,
-        bootstrapped,
-=======
-    const api = useMemo(() => ({
-        user,
-        isAdmin,
->>>>>>> branch,-zum-zeigen-heute
         async login(payload) {
             const r = await authLogin(payload);
             if (r?.user) {

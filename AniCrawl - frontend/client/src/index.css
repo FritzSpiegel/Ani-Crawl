@@ -556,36 +556,6 @@ body {
     background: #0e1118;
     color: #e5e7eb;
 }
-
-<<<<<<< HEAD
-/* Cleaner spacing & typography */
-main.container {
-    padding-top: 28px;
-}
-
-h1, h2, h3 {
-    letter-spacing: .2px;
-}
-
-.header-nav .nav-link {
-    background: transparent;
-}
-
-.nav-link.is-active {
-    background: #172033;
-}
-
-.header-search__input {
-    border-radius: 12px;
-}
-
-.details__meta label {
-    display: grid;
-    gap: 6px;
-}
-
-=======
->>>>>>> branch,-zum-zeigen-heute
 /* Tables */
 .table {
     width: 100%;
