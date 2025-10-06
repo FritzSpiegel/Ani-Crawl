@@ -203,9 +203,15 @@ async function getTransporter() {
             secure: Number(SMTP_PORT) === 465,
             auth: { user: SMTP_USER, pass: SMTP_PASS }
         });
-        try { await transporter.verify(); console.log('📮 SMTP verbunden:', SMTP_HOST, 'Port', SMTP_PORT); }
-        catch (e) { console.error('❌ SMTP verify fehlgeschlagen:', e?.response || e?.message || e); }
-        return transporter;
+        try {
+            await transporter.verify();
+            console.log('📮 SMTP verbunden:', SMTP_HOST, 'Port', SMTP_PORT);
+            return transporter;
+        } catch (e) {
+            console.error('❌ SMTP verify fehlgeschlagen:', e?.response || e?.message || e);
+            // Fallback zu Ethereal Test-Account
+            transporter = undefined;
+        }
     }
     const test = await nodemailer.createTestAccount();
     transporter = nodemailer.createTransport({
@@ -233,6 +239,7 @@ async function sendVerificationEmail(email, code) {
         return { ok: true };
     } catch (e) {
         console.error('✉️  MAIL SEND FAILED:', e?.response || e?.message || e);
+        console.log(`ℹ️  Verifikationscode (DEV): ${code} für ${email}`);
         return { ok: false };
     }
 }
@@ -280,10 +287,9 @@ app.post('/auth/register', async (req, res) => {
     const code = sixDigits();
     const expires = Date.now() + 15 * 60 * 1000;
     await dbApi.insertUser({ firstName: firstName.trim(), lastName: lastName.trim(), email: emailNorm, passHash, code, expires });
-
-    sendVerificationEmail(emailNorm, code).catch(console.error);
+    const mailRes = await sendVerificationEmail(emailNorm, code);
     const payload = { ok: true, email: emailNorm };
-    if (DEV_RETURN_CODE === '1') payload.devCode = code;
+    if (!mailRes.ok || DEV_RETURN_CODE === '1') payload.devCode = code;
     res.json(payload);
 });
 
@@ -306,7 +312,7 @@ app.post('/auth/login', async (req, res) => {
     res.cookie('token', token, { httpOnly: true, sameSite: 'Lax', secure: false, maxAge: 7 * 24 * 3600 * 1000 });
     if (!rowToBool(user.verified)) return res.status(403).json({ ok: false, code: 'NOT_VERIFIED', message: 'E-Mail nicht bestätigt.' });
 
-    res.json({ ok: true, user: { email: user.email, firstName: user.first_name, lastName: user.last_name } });
+    res.json({ ok: true, user: { email: user.email, firstName: user.first_name, lastName: user.last_name }, admin: (user.email && user.email.toLowerCase() === String(ADMIN_EMAIL).toLowerCase()) });
 });
 // ---------- Admin Endpoints ----------
 app.post('/admin/login', (req, res) => {
@@ -371,24 +377,71 @@ app.post('/auth/resend', async (req, res) => {
     }
 });
 
-// Session prüfen
-app.get('/auth/me', async (req, res) => {
+// ---------- Admin Endpoints ----------
+app.post('/admin/login', (req, res) => {
+    const { email, password } = req.body || {};
+    if (String(email).toLowerCase() === String(ADMIN_EMAIL).toLowerCase() && String(password) === String(ADMIN_PASSWORD)) {
+        const token = jwt.sign({ uid: 0, email: ADMIN_EMAIL }, JWT_SECRET, { expiresIn: '7d' });
+        res.cookie('token', token, { httpOnly: true, sameSite: 'Lax', secure: false, maxAge: 7 * 24 * 3600 * 1000 });
+        return res.json({ ok: true, admin: true });
+    }
+    return res.status(401).json({ ok: false, message: 'Admin Login fehlgeschlagen.' });
+});
+
+app.get('/admin/users', requireAdmin, async (_req, res) => {
     try {
-        const token = req.cookies?.token;
-        if (!token) return res.status(401).json({ ok: false });
-        const payload = jwt.verify(token, JWT_SECRET);
-        // Admin-Session
-        if (payload.email && payload.email.toLowerCase() === String(ADMIN_EMAIL).toLowerCase()) {
-            return res.json({ ok: true, user: { email: ADMIN_EMAIL, firstName: 'Admin', lastName: 'User' }, admin: true });
+        if (usePg) {
+            const { rows } = await pool.query('SELECT id, first_name, last_name, email, verified, created_at FROM users ORDER BY created_at DESC');
+            return res.json({ ok: true, users: rows });
         }
-        const emailNorm = String(payload.email || '').toLowerCase().trim();
-        const user = await dbApi.getUserByEmail(emailNorm);
-        if (!user) return res.status(401).json({ ok: false });
-        return res.json({ ok: true, user: { email: user.email, firstName: user.first_name, lastName: user.last_name }, admin: false });
-    } catch {
-        return res.status(401).json({ ok: false });
+        const rows = db.prepare('SELECT id, first_name, last_name, email, verified, created_at FROM users ORDER BY created_at DESC').all();
+        return res.json({ ok: true, users: rows.map(r => ({ ...r, verified: Boolean(r.verified) })) });
+    } catch (e) {
+        console.error('ADMIN USERS ERROR:', e);
+        return res.status(500).json({ ok: false, message: 'Fehler beim Laden der Nutzer.' });
     }
 });
+
+app.delete('/admin/users/:id', requireAdmin, async (req, res) => {
+    try {
+        const uid = Number(req.params.id);
+        if (!uid || Number.isNaN(uid)) return res.status(400).json({ ok: false, message: 'Ungültige ID' });
+        if (usePg) {
+            await pool.query('DELETE FROM users WHERE id=$1', [uid]);
+        } else {
+            db.prepare('DELETE FROM users WHERE id=?').run(uid);
+        }
+        return res.json({ ok: true });
+    } catch (e) {
+        console.error('ADMIN DELETE USER ERROR:', e);
+        return res.status(500).json({ ok: false, message: 'Löschen fehlgeschlagen.' });
+    }
+});
+
+app.post('/auth/logout', (_req, res) => { res.clearCookie('token', { httpOnly: true, sameSite: 'Lax', secure: false }); res.json({ ok: true }); });
+
+app.post('/auth/resend', async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').toLowerCase().trim();
+        const user = await dbApi.getUserByEmail(email);
+        if (!user) return res.status(404).json({ ok: false, message: 'Unbekannte E-Mail.' });
+        if (rowToBool(user.verified)) return res.json({ ok: true, message: 'Schon verifiziert.' });
+
+        const code = sixDigits();
+        const expires = Date.now() + 15 * 60 * 1000;
+        await dbApi.updateVerifyCode({ userId: user.id, code, expires });
+
+        const mailRes = await sendVerificationEmail(email, code);
+        if (!mailRes.ok) return res.status(202).json({ ok: true, message: 'Code erneuert; E-Mail-Versand fehlgeschlagen (siehe Server-Log).' });
+        res.json({ ok: true });
+    } catch (e) {
+        console.error('RESEND ERROR:', e);
+        res.status(500).json({ ok: false, message: 'Resend fehlgeschlagen.' });
+    }
+});
+
+// Session prüfen
+// removed /auth/me for the requested rollback point
 
 app.post('/auth/verify-code', async (req, res) => {
     const { email, code } = req.body || {};

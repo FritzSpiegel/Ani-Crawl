@@ -25,15 +25,7 @@ export async function authLogout() {
     return await apiRequest('/auth/logout', { method: 'POST' });
 }
 
-export async function authMe() {
-    try {
-        const r = await apiRequest('/auth/me');
-        return r;
-    } catch {
-        return { ok: false };
-    }
-}
-
+// removed authMe for the requested rollback point
 export async function authVerifyCode({ email, code }) {
     return await apiRequest('/auth/verify-code', { method: 'POST', body: { email, code } });
 }
