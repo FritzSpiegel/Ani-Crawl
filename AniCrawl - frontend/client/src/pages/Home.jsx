@@ -5,7 +5,7 @@ import { extRecs } from "../services/auth.js";
 
 // will be loaded from server proxy to crawler
 
-function more(offset, count) { return Array.from({ length: count }, (_, i) => ({ id: 100 + offset + i, title: `Anime #${offset + i + 1}`, img: `https://picsum.photos/seed/an${offset + i + 1}/400/600` })); }
+function more(offset, count) { return Array.from({ length: count }, (_, i) => ({ id: 100 + offset + i, title: `Anime #${offset + i + 1}`, img: "" })); }
 
 export default function Home() {
     const [items, setItems] = useState(more(0, 20));

@@ -4,39 +4,63 @@ import { useEffect, useMemo, useState } from "react";
 import { wlAdd, wlContains, wlRemove } from "../services/auth.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
-function useAnime(id) {
-    return useMemo(() => ({
-        id, title: "One Piece", yearStart: 1999, yearEnd: "Heute",
-        poster: "https://picsum.photos/seed/onepieceposter/640/900",
-        overview: "Reichtum, Macht und Ruhm … (Dummy).",
-        crew: { regie: "Kōnosuke Uda …", cast: "Mayumi Tanaka …", production: "Toei Animation …", country: "Japan" },
-        tags: ["Fighting - Shounen", "Abenteuer", "Action", "Drama", "EngSub", "GerDub"]
-    }), [id]);
-}
-
 export default function Details() {
-    const { id } = useParams();
-    const anime = useAnime(id);
-    const [expanded, setExpanded] = useState(false);
-    const text = anime.overview.length > 260 && !expanded ? anime.overview.slice(0, 260) + "…" : anime.overview;
+    const { id: slug } = useParams();
     const { user } = useAuth();
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [expanded, setExpanded] = useState(false);
     const [inList, setInList] = useState(false);
     const [busy, setBusy] = useState(false);
 
     useEffect(() => {
         let mounted = true;
-        async function load() { try { if (user) { const exists = await wlContains(id); if (mounted) setInList(exists); } } catch {}
-        }
-        load();
+        setLoading(true); setError(""); setData(null);
+        (async () => {
+            try {
+                const res = await fetch(`/api/anime/${encodeURIComponent(slug)}`);
+                const json = await res.json();
+                if (!res.ok) throw new Error(json?.error?.message || "Laden fehlgeschlagen");
+                if (mounted) setData(json);
+            } catch (e) {
+                if (mounted) setError(String(e?.message || e));
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        })();
         return () => { mounted = false; };
-    }, [id, user]);
+    }, [slug]);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                if (user && slug) {
+                    const exists = await wlContains(slug);
+                    if (mounted) setInList(exists);
+                } else {
+                    if (mounted) setInList(false);
+                }
+            } catch {}
+        })();
+        return () => { mounted = false; };
+    }, [slug, user]);
+
+    const title = data?.canonicalTitle || "";
+    const poster = data?.imageUrl || "";
+    const overview = data?.description || "";
+    const yearStart = data?.yearStart ?? "";
+    const yearEnd = data?.yearEnd ?? "Heute";
+    const genres = Array.isArray(data?.genres) ? data.genres : [];
+    const text = overview.length > 260 && !expanded ? overview.slice(0, 260) + "…" : overview;
 
     async function toggleWatchlist() {
         if (!user || busy) return;
         setBusy(true);
         try {
-            if (inList) { await wlRemove(id); setInList(false); }
-            else { await wlAdd({ id, title: anime.title, img: anime.poster }); setInList(true); }
+            if (inList) { await wlRemove(slug); setInList(false); }
+            else { await wlAdd({ id: slug, title, img: poster }); setInList(true); }
         } finally { setBusy(false); }
     }
 
@@ -44,26 +68,26 @@ export default function Details() {
         <div>
             <Header />
             <main className="container" style={{ padding: "28px 0 96px" }}>
-                <div className="details">
-                    <div className="details__poster"><img src={anime.poster} alt="" /></div>
-                    <div className="details__info">
-                        <h1 className="details__title">{anime.title} ({anime.yearStart} - {anime.yearEnd})</h1>
-                        <p className="details__overview">
-                            {text} {anime.overview.length > 260 && <button className="link-more" onClick={() => setExpanded(v => !v)}>{expanded ? "weniger anzeigen" : "mehr anzeigen"}</button>}
-                        </p>
-                        <div className="details__meta">
-                            <div><span className="meta-label">Regisseure:</span> {anime.crew.regie}</div>
-                            <div><span className="meta-label">Schauspieler:</span> {anime.crew.cast}</div>
-                            <div><span className="meta-label">Produzent:</span> {anime.crew.production}</div>
-                            <div><span className="meta-label">Land:</span> {anime.crew.country}</div>
-                        </div>
-                        <div className="tag-list">{anime.tags.map(t => <span key={t} className="tag-chip">{t}</span>)}</div>
-                        <div className="cta-row">
-                            <button className="btn btn--primary" onClick={toggleWatchlist} disabled={!user || busy}>{inList ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}</button>
-                            <button className="btn">Watch Now</button>
+                {loading ? (
+                    <div>lädt …</div>
+                ) : error ? (
+                    <div style={{ color: "#f55" }}>{error}</div>
+                ) : (
+                    <div className="details">
+                        <div className="details__poster">{poster && <img src={poster} alt="" />}</div>
+                        <div className="details__info">
+                            <h1 className="details__title">{title} ({yearStart} - {yearEnd || "Heute"})</h1>
+                            <p className="details__overview">
+                                {text} {overview.length > 260 && <button className="link-more" onClick={() => setExpanded(v => !v)}>{expanded ? "weniger anzeigen" : "mehr anzeigen"}</button>}
+                            </p>
+                            <div className="tag-list">{genres.map((t) => <span key={t} className="tag-chip">{t}</span>)}</div>
+                            <div className="cta-row">
+                                <button className="btn btn--primary" onClick={toggleWatchlist} disabled={!user || busy}>{inList ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}</button>
+                                <button className="btn">Watch Now</button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
             </main>
         </div>
     );

@@ -8,10 +8,11 @@ export default defineConfig(({ mode }) => {
         server: {
             port: 5173,
             proxy: {
-                '/auth': `http://localhost:${apiPort}`,
-                '/watchlist': `http://localhost:${apiPort}`,
-                '/admin': `http://localhost:${apiPort}`,
-                '/ext': `http://localhost:${apiPort}`
+                '/auth': 'http://localhost:3001',
+                '/watchlist': 'http://localhost:3001',
+                '/admin': 'http://localhost:3001',
+                // Crawler API
+                '/api': 'http://localhost:3001'
             }
         }
     }
