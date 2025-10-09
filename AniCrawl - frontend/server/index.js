@@ -22,7 +22,8 @@ const {
     DEV_RETURN_CODE = '0',
     DATABASE_URL,
     ADMIN_EMAIL = 'Admin@Mail',
-    ADMIN_PASSWORD = 'password'
+    ADMIN_PASSWORD = 'password',
+    CRAWLER_BASE_URL = 'http://localhost:3001/api'
 } = process.env;
 
 if (!JWT_SECRET) { console.error('❌ .env: JWT_SECRET fehlt'); process.exit(1); }
@@ -486,6 +487,49 @@ app.post('/watchlist', requireAuth, async (req, res) => {
 app.delete('/watchlist/:id', requireAuth, async (req, res) => {
     await dbApi.watchlistDelete(req.user.uid, req.params.id);
     res.json({ ok: true });
+});
+
+// ---------- External Crawler Proxy ----------
+async function crawlerGet(pathnameWithQuery) {
+    const url = `${CRAWLER_BASE_URL.replace(/\/$/, '')}${pathnameWithQuery.startsWith('/') ? '' : '/'}${pathnameWithQuery}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`Crawler HTTP ${r.status}`);
+    return await r.json();
+}
+
+// Recommended selection (adjust as desired)
+const DEFAULT_TITLES = ['One Piece','Death Note','Steins Gate','Mob Psycho','Sekirei','To LOVE RU'];
+
+app.get('/ext/recs', async (_req, res) => {
+    try {
+        const results = await Promise.all(DEFAULT_TITLES.map(async (q) => {
+            try {
+                const data = await crawlerGet(`/search?q=${encodeURIComponent(q)}`);
+                return {
+                    id: data.slug,
+                    slug: data.slug,
+                    title: data.canonicalTitle || q,
+                    img: data.imageUrl || null,
+                    description: data.description || ''
+                };
+            } catch {
+                return null;
+            }
+        }));
+        res.json({ ok: true, items: results.filter(Boolean) });
+    } catch (e) {
+        console.error('EXT RECS ERROR:', e);
+        res.status(500).json({ ok: false });
+    }
+});
+
+app.get('/ext/anime/:slug', async (req, res) => {
+    try {
+        const data = await crawlerGet(`/anime/${encodeURIComponent(req.params.slug)}`);
+        res.json({ ok: true, data });
+    } catch (e) {
+        res.status(404).json({ ok: false });
+    }
 });
 
 function startServer(preferredPort, maxAttempts = 10) {

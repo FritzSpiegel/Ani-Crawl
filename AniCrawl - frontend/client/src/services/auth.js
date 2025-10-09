@@ -74,3 +74,14 @@ export async function adminDeleteUser(id) {
     await apiRequest(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
     return true;
 }
+
+// -------- External data (crawler proxy) --------
+export async function extRecs() {
+    const r = await apiRequest('/ext/recs');
+    return r.items || [];
+}
+
+export async function extAnime(slug) {
+    const r = await apiRequest(`/ext/anime/${encodeURIComponent(slug)}`);
+    return r.data;
+}

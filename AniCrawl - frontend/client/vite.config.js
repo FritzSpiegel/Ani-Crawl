@@ -10,7 +10,8 @@ export default defineConfig(({ mode }) => {
             proxy: {
                 '/auth': `http://localhost:${apiPort}`,
                 '/watchlist': `http://localhost:${apiPort}`,
-                '/admin': `http://localhost:${apiPort}`
+                '/admin': `http://localhost:${apiPort}`,
+                '/ext': `http://localhost:${apiPort}`
             }
         }
     }
