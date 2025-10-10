@@ -35,14 +35,14 @@ router.get("/search", async (req, res) => {
     return res.json({ ...dto, source: "db" });
   }
 
-  // Crawl from static HTMLs
+  // Crawl from live search (force fetchLive=true to avoid static fixtures)
   try {
-    const searchHtml = await loadSearchHtml(q, fetchLive);
+    const searchHtml = await loadSearchHtml(q, true); // Always use live fetch for searches
     const { topTitle, topHref } = parseSearch(searchHtml);
     if (!topTitle || !topHref) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "No results in search" } });
     }
-    const detailHtml = await loadDetailHtml(topHref, fetchLive);
+    const detailHtml = await loadDetailHtml(topHref, true); // Always use live fetch for details
     const partial = parseDetail(detailHtml);
     const { slug, sourceUrl } = deriveSlugAndSourceUrl(topTitle, topHref);
 

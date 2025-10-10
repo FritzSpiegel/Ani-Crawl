@@ -9,7 +9,16 @@ export type SearchResult = {
 
 export function parseSearch(html: string): SearchResult {
   const $ = cheerio.load(html);
-  // Assume first result link is within a result list; adapt as per provided HTML
+  
+  // First try to parse AJAX response format (synthesized HTML)
+  const ajaxFirst = $(".searchResults li a").first();
+  if (ajaxFirst.length > 0) {
+    const topHref = ajaxFirst.attr("href") || undefined;
+    const topTitle = ajaxFirst.text().trim() || undefined;
+    return { topTitle, topHref };
+  }
+  
+  // Fallback to normal HTML page format
   const first = $("a[href^='/anime/stream/']").first();
   const topHref = first.attr("href") || undefined;
   const topTitle = first.text().trim() || undefined;
