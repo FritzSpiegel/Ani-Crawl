@@ -95,24 +95,89 @@ router.get("/search", async (req, res) => {
 
 router.get("/anime/:slug", async (req, res) => {
   const slug = String(req.params.slug);
-  const doc = await AnimeModel.findOne({ slug }).lean();
-  if (!doc) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
-  const dto = {
-    slug: doc.slug,
-    canonicalTitle: doc.canonicalTitle,
-    altTitles: doc.altTitles,
-    description: doc.description,
-    imageUrl: doc.imageUrl ?? null,
-    yearStart: doc.yearStart ?? null,
-    yearEnd: doc.yearEnd ?? null,
-    genres: doc.genres,
-    cast: doc.cast,
-    producers: doc.producers,
-    episodes: doc.episodes,
-    sourceUrl: doc.sourceUrl,
-    lastCrawledAt: doc.lastCrawledAt.toISOString(),
-  };
-  return res.json(dto);
+  
+  try {
+    // First try to find by slug
+    let doc = await AnimeModel.findOne({ slug }).lean();
+    
+    // If not found by slug, try by _id (for numeric IDs)
+    if (!doc && /^[0-9a-fA-F]{24}$/.test(slug)) {
+      doc = await AnimeModel.findById(slug).lean();
+    }
+    
+    // If still not found, try to find by canonical title (for fallback cases)
+    if (!doc) {
+      doc = await AnimeModel.findOne({ 
+        canonicalTitle: { $regex: new RegExp(slug.replace(/-/g, ' '), 'i') }
+      }).lean();
+    }
+    
+    // If still not found, try live crawl (similar to search)
+    if (!doc) {
+      try {
+        // Convert slug back to a searchable title
+        const searchQuery = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const searchHtml = await loadSearchHtml(searchQuery, true);
+        const { topTitle, topHref } = parseSearch(searchHtml);
+        
+        if (topTitle && topHref) {
+          const detailHtml = await loadDetailHtml(topHref, true);
+          const partial = parseDetail(detailHtml);
+          const { slug: newSlug, sourceUrl } = deriveSlugAndSourceUrl(topTitle, topHref);
+
+          const now = new Date();
+          doc = await AnimeModel.findOneAndUpdate(
+            { slug: newSlug },
+            {
+              $set: {
+                slug: newSlug,
+                canonicalTitle: partial.canonicalTitle || topTitle,
+                altTitles: Array.from(new Set([...(partial.altTitles || []), topTitle])).filter(Boolean),
+                normalizedTitle: normalizeTitle(partial.canonicalTitle || topTitle),
+                description: partial.description || "",
+                imageUrl: partial.imageUrl || undefined,
+                yearStart: partial.yearStart ?? undefined,
+                yearEnd: partial.yearEnd ?? undefined,
+                genres: partial.genres || [],
+                cast: partial.cast || [],
+                producers: partial.producers || [],
+                episodes: partial.episodes || [],
+                sourceUrl,
+                lastCrawledAt: now,
+              },
+            },
+            { upsert: true, new: true }
+          ).lean();
+        }
+      } catch (crawlErr) {
+        console.error(`Failed to crawl anime for slug ${slug}:`, crawlErr);
+      }
+    }
+    
+    if (!doc) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Anime not found" } });
+    }
+    
+    const dto = {
+      slug: doc.slug,
+      canonicalTitle: doc.canonicalTitle,
+      altTitles: doc.altTitles,
+      description: doc.description,
+      imageUrl: doc.imageUrl ?? null,
+      yearStart: doc.yearStart ?? null,
+      yearEnd: doc.yearEnd ?? null,
+      genres: doc.genres,
+      cast: doc.cast,
+      producers: doc.producers,
+      episodes: doc.episodes,
+      sourceUrl: doc.sourceUrl,
+      lastCrawledAt: doc.lastCrawledAt.toISOString(),
+    };
+    return res.json(dto);
+  } catch (err: any) {
+    console.error(`Error fetching anime ${slug}:`, err);
+    return res.status(500).json({ error: { code: "FETCH_FAILED", message: err?.message || "Failed to fetch anime" } });
+  }
 });
 
 router.post("/reindex", async (req, res) => {

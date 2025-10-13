@@ -5,6 +5,10 @@ import { customAlphabet } from "nanoid";
 import nodemailer from "nodemailer";
 import { User } from "../models/User";
 import { WatchlistItem } from "../models/Watchlist";
+import { AnimeModel } from "../models/Anime";
+import { normalizeTitle } from "../utils/normalize";
+import { loadSearchHtml, loadDetailHtml } from "../crawler/fetch";
+import { parseSearch, parseDetail, deriveSlugAndSourceUrl } from "../crawler/parser";
 import { env } from "../env";
 
 const router = express.Router();
@@ -277,7 +281,96 @@ router.get('/status', async (req, res) => {
 router.get('/watchlist', authenticateToken, async (req: any, res) => {
   try {
     const items = await WatchlistItem.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    res.json({ items });
+    
+    // If user has watchlist items, return them
+    if (items.length > 0) {
+      res.json({ items });
+      return;
+    }
+
+    // If watchlist is empty, auto-populate with popular anime via live crawler
+    const popularAnimeQueries = [
+      "Attack on Titan",
+      "One Piece", 
+      "Naruto",
+      "Demon Slayer"
+    ];
+
+    const autoAddedItems = [];
+    
+    for (const query of popularAnimeQueries) {
+      try {
+        const normalized = normalizeTitle(query);
+        
+        // Check if we already have this anime in the database
+        let animeData = await AnimeModel.findOne({ normalizedTitle: normalized }).lean();
+        
+        if (!animeData) {
+          // Crawl it live if not in database
+          const searchHtml = await loadSearchHtml(query, true);
+          const { topTitle, topHref } = parseSearch(searchHtml);
+          
+          if (topTitle && topHref) {
+            const detailHtml = await loadDetailHtml(topHref, true);
+            const partial = parseDetail(detailHtml);
+            const { slug, sourceUrl } = deriveSlugAndSourceUrl(topTitle, topHref);
+
+            const now = new Date();
+            animeData = await AnimeModel.findOneAndUpdate(
+              { slug },
+              {
+                $set: {
+                  slug,
+                  canonicalTitle: partial.canonicalTitle || topTitle,
+                  altTitles: Array.from(new Set([...(partial.altTitles || []), topTitle])).filter(Boolean),
+                  normalizedTitle: normalizeTitle(partial.canonicalTitle || topTitle),
+                  description: partial.description || "",
+                  imageUrl: partial.imageUrl || undefined,
+                  yearStart: partial.yearStart ?? undefined,
+                  yearEnd: partial.yearEnd ?? undefined,
+                  genres: partial.genres || [],
+                  cast: partial.cast || [],
+                  producers: partial.producers || [],
+                  episodes: partial.episodes || [],
+                  sourceUrl,
+                  lastCrawledAt: now,
+                },
+              },
+              { upsert: true, new: true }
+            ).lean();
+          }
+        }
+
+        if (animeData) {
+          // Add to user's watchlist
+          const watchlistItem = new WatchlistItem({
+            userId: req.user._id,
+            itemId: animeData.slug,
+            title: animeData.canonicalTitle,
+            image: animeData.imageUrl
+          });
+
+          try {
+            await watchlistItem.save();
+            autoAddedItems.push({
+              id: watchlistItem.itemId,
+              title: watchlistItem.title,
+              image: watchlistItem.image
+            });
+          } catch (err: any) {
+            // Skip if already exists (unique constraint)
+            if (!err.message?.includes('duplicate')) {
+              console.error(`Failed to add ${query} to watchlist:`, err);
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to crawl and add ${query}:`, err);
+        // Continue with next anime
+      }
+    }
+
+    res.json({ items: autoAddedItems });
   } catch (error) {
     console.error('Watchlist fetch error:', error);
     res.status(500).json({ message: 'Internal server error' });

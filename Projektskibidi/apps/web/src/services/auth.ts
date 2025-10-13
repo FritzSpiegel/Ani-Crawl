@@ -47,21 +47,21 @@ export async function authVerifyStatus(email: string) {
 }
 
 export async function wlList() {
-    const r = await apiRequest('/watchlist');
+    const r = await apiRequest('/auth/watchlist');
     return r.items || [];
 }
 
 export async function wlContains(id: string) {
-    const r = await apiRequest(`/watchlist/contains/${encodeURIComponent(id)}`);
+    const r = await apiRequest(`/auth/watchlist/contains/${encodeURIComponent(id)}`);
     return !!r.exists;
 }
 
 export async function wlAdd(payload: { id: string; title: string; image?: string }) {
-    return await apiRequest('/watchlist', { method: 'POST', body: { id: payload.id, title: payload.title, img: payload.image } });
+    return await apiRequest('/auth/watchlist/add', { method: 'POST', body: { id: payload.id, title: payload.title, image: payload.image } });
 }
 
 export async function wlRemove(id: string) {
-    return await apiRequest(`/watchlist/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return await apiRequest(`/auth/watchlist/remove/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 // Admin functions

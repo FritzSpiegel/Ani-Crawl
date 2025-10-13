@@ -4,10 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import { wlAdd, wlContains, wlRemove } from "../services/auth";
 import { useAuth } from "../context/AuthContext";
 
+interface AnimeData {
+    slug: string;
+    canonicalTitle: string;
+    description: string;
+    imageUrl: string | null;
+    yearStart: number | null;
+    yearEnd: number | null;
+    genres: string[];
+}
+
 export default function Details() {
-    const { id: slug } = useParams();
+    const { id: slug } = useParams<{ id: string }>();
     const { user } = useAuth();
-    const [data, setData] = useState(null);
+    const [data, setData] = useState<AnimeData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [expanded, setExpanded] = useState(false);
@@ -15,15 +25,27 @@ export default function Details() {
     const [busy, setBusy] = useState(false);
 
     useEffect(() => {
+        if (!slug) return;
+        
         let mounted = true;
         setLoading(true); setError(""); setData(null);
         (async () => {
             try {
                 const res = await fetch(`/api/anime/${encodeURIComponent(slug)}`);
+                
+                // Check if response is actually JSON
+                const contentType = res.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await res.text();
+                    console.error('Non-JSON response:', text);
+                    throw new Error('Server returned non-JSON response. Check console for details.');
+                }
+                
                 const json = await res.json();
-                if (!res.ok) throw new Error(json?.error?.message || "Laden fehlgeschlagen");
+                if (!res.ok) throw new Error(json?.error?.message || `HTTP ${res.status}: Laden fehlgeschlagen`);
                 if (mounted) setData(json);
-            } catch (e) {
+            } catch (e: any) {
+                console.error('Details fetch error:', e);
                 if (mounted) setError(String(e?.message || e));
             } finally {
                 if (mounted) setLoading(false);
@@ -33,6 +55,8 @@ export default function Details() {
     }, [slug]);
 
     useEffect(() => {
+        if (!slug) return;
+        
         let mounted = true;
         (async () => {
             try {
@@ -56,11 +80,11 @@ export default function Details() {
     const text = overview.length > 260 && !expanded ? overview.slice(0, 260) + "…" : overview;
 
     async function toggleWatchlist() {
-        if (!user || busy) return;
+        if (!user || busy || !slug) return;
         setBusy(true);
         try {
             if (inList) { await wlRemove(slug); setInList(false); }
-            else { await wlAdd({ id: slug, title, img: poster }); setInList(true); }
+            else { await wlAdd({ id: slug, title, image: poster }); setInList(true); }
         } finally { setBusy(false); }
     }
 
