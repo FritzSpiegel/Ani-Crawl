@@ -40,7 +40,25 @@ export default function Home() {
         let mounted = true;
         (async () => {
             try {
-                // Erstelle Mock-Empfehlungen
+                const response = await fetch('/api/recommendations');
+                if (response.ok) {
+                    const recommendations: Anime[] = await response.json();
+                    if (mounted) setRecs(recommendations);
+                } else {
+                    // Fallback to mock data if API fails
+                    const mockRecs: Anime[] = [
+                        { id: 1, title: "Attack on Titan", img: "", slug: "attack-on-titan" },
+                        { id: 2, title: "One Piece", img: "", slug: "one-piece" },
+                        { id: 3, title: "Naruto", img: "", slug: "naruto" },
+                        { id: 4, title: "Dragon Ball", img: "", slug: "dragon-ball" },
+                        { id: 5, title: "Demon Slayer", img: "", slug: "demon-slayer" },
+                        { id: 6, title: "My Hero Academia", img: "", slug: "my-hero-academia" }
+                    ];
+                    if (mounted) setRecs(mockRecs);
+                }
+            } catch (error) {
+                console.error('Failed to fetch recommendations:', error);
+                // Fallback to mock data on error
                 const mockRecs: Anime[] = [
                     { id: 1, title: "Attack on Titan", img: "", slug: "attack-on-titan" },
                     { id: 2, title: "One Piece", img: "", slug: "one-piece" },
@@ -50,7 +68,7 @@ export default function Home() {
                     { id: 6, title: "My Hero Academia", img: "", slug: "my-hero-academia" }
                 ];
                 if (mounted) setRecs(mockRecs);
-            } catch {}
+            }
         })();
         return () => { mounted = false; };
     }, []);

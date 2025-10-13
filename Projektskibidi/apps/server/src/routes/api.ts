@@ -126,4 +126,124 @@ router.post("/reindex", async (req, res) => {
   return res.json({ ok: true, count: slugs.length });
 });
 
+router.get("/recommendations", async (req, res) => {
+  try {
+    // First try to get recommendations from database
+    const recommendations = await AnimeModel.aggregate([
+      { $match: { imageUrl: { $exists: true, $ne: null, $ne: "" } } },
+      { $sample: { size: 6 } },
+      { $project: {
+        slug: 1,
+        canonicalTitle: 1,
+        imageUrl: 1,
+        _id: 1
+      }}
+    ]);
+
+    // If we have enough recommendations from DB, return them
+    if (recommendations.length >= 6) {
+      const dto = recommendations.map(anime => ({
+        id: anime._id.toString(),
+        slug: anime.slug,
+        title: anime.canonicalTitle,
+        img: anime.imageUrl
+      }));
+      return res.json(dto);
+    }
+
+    // If we don't have enough data in DB, crawl some popular anime
+    const popularAnimeQueries = [
+      "Attack on Titan",
+      "One Piece", 
+      "Naruto",
+      "Dragon Ball",
+      "Demon Slayer",
+      "My Hero Academia",
+      "Death Note",
+      "Fullmetal Alchemist"
+    ];
+
+    const crawledData = [];
+    const needed = 6 - recommendations.length;
+    
+    for (let i = 0; i < Math.min(needed, popularAnimeQueries.length); i++) {
+      try {
+        const query = popularAnimeQueries[i];
+        const normalized = normalizeTitle(query);
+        
+        // Check if we already have this one
+        const existing = await AnimeModel.findOne({ normalizedTitle: normalized }).lean();
+        if (existing) {
+          crawledData.push({
+            id: existing._id.toString(),
+            slug: existing.slug,
+            title: existing.canonicalTitle,
+            img: existing.imageUrl || ""
+          });
+          continue;
+        }
+
+        // Crawl it live
+        const searchHtml = await loadSearchHtml(query, true);
+        const { topTitle, topHref } = parseSearch(searchHtml);
+        
+        if (topTitle && topHref) {
+          const detailHtml = await loadDetailHtml(topHref, true);
+          const partial = parseDetail(detailHtml);
+          const { slug, sourceUrl } = deriveSlugAndSourceUrl(topTitle, topHref);
+
+          const now = new Date();
+          const doc = await AnimeModel.findOneAndUpdate(
+            { slug },
+            {
+              $set: {
+                slug,
+                canonicalTitle: partial.canonicalTitle || topTitle,
+                altTitles: Array.from(new Set([...(partial.altTitles || []), topTitle])).filter(Boolean),
+                normalizedTitle: normalizeTitle(partial.canonicalTitle || topTitle),
+                description: partial.description || "",
+                imageUrl: partial.imageUrl || undefined,
+                yearStart: partial.yearStart ?? undefined,
+                yearEnd: partial.yearEnd ?? undefined,
+                genres: partial.genres || [],
+                cast: partial.cast || [],
+                producers: partial.producers || [],
+                episodes: partial.episodes || [],
+                sourceUrl,
+                lastCrawledAt: now,
+              },
+            },
+            { upsert: true, new: true }
+          ).lean();
+
+          crawledData.push({
+            id: doc._id.toString(),
+            slug: doc.slug,
+            title: doc.canonicalTitle,
+            img: doc.imageUrl || ""
+          });
+        }
+      } catch (err) {
+        console.error(`Failed to crawl ${popularAnimeQueries[i]}:`, err);
+        // Continue with next anime
+      }
+    }
+
+    // Combine DB recommendations with newly crawled data
+    const dbDto = recommendations.map(anime => ({
+      id: anime._id.toString(),
+      slug: anime.slug,
+      title: anime.canonicalTitle,
+      img: anime.imageUrl
+    }));
+
+    const combined = [...dbDto, ...crawledData].slice(0, 6);
+    return res.json(combined);
+
+  } catch (err: any) {
+    console.error('Recommendations error:', err);
+    return res.status(500).json({ error: { code: "FETCH_FAILED", message: err?.message || "Failed to fetch recommendations" } });
+  }
+});
+
 export default router;
