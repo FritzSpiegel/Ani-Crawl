@@ -3,7 +3,7 @@ import helmet from "helmet";
 import compression from "compression";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
-import { httpLogger, logger } from "./../src/logger";
+import { httpLogger, logger } from "./logger";
 import api from "./routes/api";
 import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";

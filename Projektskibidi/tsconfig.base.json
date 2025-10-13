@@ -11,7 +11,9 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["packages/shared/src/*"]
+      "@shared/*": ["packages/shared/src/*"],
+      "@aniworld/shared": ["packages/shared/src/index.ts"],
+      "@aniworld/shared/*": ["packages/shared/src/*"]
     }
   }
 }
