@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>User Setup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>User Setup Tool</h1>
+
+    <div>
+        <h2>1. Admin Login First</h2>
+        <button onclick="adminLogin()">Admin Login</button>
+        <div id="loginResult"></div>
+    </div>
+
+    <div>
+        <h2>2. Create Test Users</h2>
+        <button onclick="createTestUsers()">Create Test Users</button>
+        <div id="usersResult"></div>
+    </div>
+
+    <div>
+        <h2>3. View User List</h2>
+        <button onclick="getUserList()">Get User List</button>
+        <div id="listResult"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+
+        async function adminLogin() {
+            const result = document.getElementById('loginResult');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email: 'Admin@Mail',
+                        password: 'passwort'
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    result.innerHTML = '<div class="success">✓ Admin login successful!</div>';
+                } else {
+                    result.innerHTML = `<div class="error">✗ Login failed: ${data.message}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function createTestUsers() {
+            const result = document.getElementById('usersResult');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/admin/seed-users`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    result.innerHTML = `<div class="success">✓ ${data.message}</div>`;
+                } else {
+                    result.innerHTML = `<div class="error">✗ Failed: ${data.message}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function getUserList() {
+            const result = document.getElementById('listResult');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/admin/users`, {
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                if (response.ok && data.users) {
+                    result.innerHTML = `<div class="success">✓ Found ${data.users.length} users:</div><pre>${JSON.stringify(data.users, null, 2)}</pre>`;
+                } else {
+                    result.innerHTML = `<div class="error">✗ Failed: ${data.message || 'No users found'}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+
+</html>

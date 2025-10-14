@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Admin Login Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .info {
+            color: blue;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+        }
+
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Admin Login Debug Tool</h1>
+
+    <div class="test-section">
+        <h2>1. Backend Health Check</h2>
+        <button onclick="testHealth()">Test Backend Health</button>
+        <div id="healthResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Admin Login Test</h2>
+        <div>
+            <input type="email" id="adminEmail" value="Admin@Mail" placeholder="Email" />
+            <input type="password" id="adminPassword" value="passwort" placeholder="Password" />
+            <button onclick="testAdminLogin()">Test Admin Login</button>
+        </div>
+        <div id="loginResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test User List (After Login)</h2>
+        <button onclick="testUserList()">Get User List</button>
+        <div id="userListResult"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+
+        async function testHealth() {
+            const result = document.getElementById('healthResult');
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                result.innerHTML = `<div class="success">✓ Backend is running: ${JSON.stringify(data)}</div>`;
+            } catch (error) {
+                result.innerHTML = `<div class="error">✗ Backend not reachable: ${error.message}</div>`;
+            }
+        }
+
+        async function testAdminLogin() {
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+            const result = document.getElementById('loginResult');
+
+            try {
+                console.log('Sending admin login request...');
+                const response = await fetch(`${API_BASE}/api/auth/admin/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password })
+                });
+
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (response.ok) {
+                    result.innerHTML = `<div class="success">✓ Admin login successful!</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    result.innerHTML = `<div class="error">✗ Admin login failed (${response.status})</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                result.innerHTML = `<div class="error">✗ Network error: ${error.message}</div>`;
+            }
+        }
+
+        async function testUserList() {
+            const result = document.getElementById('userListResult');
+            try {
+                console.log('Fetching user list...');
+                const response = await fetch(`${API_BASE}/api/auth/admin/users`, {
+                    credentials: 'include'
+                });
+
+                console.log('User list response status:', response.status);
+                const data = await response.json();
+                console.log('User list data:', data);
+
+                if (response.ok) {
+                    result.innerHTML = `<div class="success">✓ User list retrieved!</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    result.innerHTML = `<div class="error">✗ User list failed (${response.status})</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                console.error('User list error:', error);
+                result.innerHTML = `<div class="error">✗ Network error: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-test health on page load
+        window.onload = function () {
+            testHealth();
+        };
+    </script>
+</body>
+
+</html>

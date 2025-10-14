@@ -20,15 +20,19 @@ async function apiRequest(path: string, options: ApiRequestOptions = {}) {
 }
 
 export async function authRegister(payload: { firstName: string; lastName: string; email: string; password: string }) {
-    return await apiRequest('/auth/register', { method: 'POST', body: payload });
+    return await apiRequest('/api/auth/register', { method: 'POST', body: payload });
 }
 
 export async function authLogin(payload: { email: string; password: string }) {
-    return await apiRequest('/auth/login', { method: 'POST', body: payload });
+    return await apiRequest('/api/auth/login', { method: 'POST', body: payload });
+}
+
+export async function adminLogin(payload: { email: string; password: string }) {
+    return await apiRequest('/api/auth/admin/login', { method: 'POST', body: payload });
 }
 
 export async function authLogout() {
-    return await apiRequest('/auth/logout', { method: 'POST' });
+    return await apiRequest('/api/auth/logout', { method: 'POST' });
 }
 
 export async function authVerifyCode({ email, code }: { email: string; code: string }) {
@@ -66,10 +70,10 @@ export async function wlRemove(id: string) {
 
 // Admin functions
 export async function adminUsers() {
-    const r = await apiRequest('/admin/users');
+    const r = await apiRequest('/api/auth/admin/users');
     return r.users || [];
 }
 
 export async function adminDeleteUser(email: string) {
-    return await apiRequest(`/admin/users/${encodeURIComponent(email)}`, { method: 'DELETE' });
+    return await apiRequest(`/api/auth/admin/users/${encodeURIComponent(email)}`, { method: 'DELETE' });
 }

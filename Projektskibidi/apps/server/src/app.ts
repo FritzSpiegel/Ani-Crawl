@@ -15,7 +15,10 @@ export function createApp() {
   app.use(httpLogger);
   app.use(helmet());
   app.use(compression());
-  app.use(cors({ origin: env.appBaseUrl, credentials: true }));
+  app.use(cors({
+    origin: [env.appBaseUrl, 'http://localhost:5174', 'http://127.0.0.1:8080'],
+    credentials: true
+  }));
   app.use(express.json());
   app.use(cookieParser());
   app.use(rateLimit({ windowMs: 60_000, limit: 10 }));

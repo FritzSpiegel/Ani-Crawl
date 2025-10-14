@@ -11,7 +11,7 @@ export default function Admin() {
         if (!isAdmin) return;
         let mounted = true;
         (async () => {
-            try { const list = await adminUsers(); if (mounted) setUsers(list); } catch {}
+            try { const list = await adminUsers(); if (mounted) setUsers(list); } catch { }
         })();
         return () => { mounted = false; };
     }, [isAdmin]);
@@ -36,7 +36,11 @@ export default function Admin() {
                         <div className="details__meta">
                             <div className="auth-header">
                                 <h2 className="auth-title">Admin-Bereich</h2>
-                                <div className="auth-subtitle">Bitte zuerst normal einloggen. Admin wird automatisch erkannt.</div>
+                                <div className="auth-subtitle">
+                                    Bitte mit Admin-Credentials einloggen:<br />
+                                    E-Mail: Admin@Mail<br />
+                                    Passwort: passwort
+                                </div>
                             </div>
                             {err && <div className="alert alert--error">{err}</div>}
                         </div>

@@ -6,15 +6,21 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 export default function Login() {
     const nav = useNavigate();
-    const { login } = useAuth();
+    const { login, adminLogin } = useAuth();
     const [form, setForm] = useState({ email: "", password: "" });
     const [err, setErr] = useState("");
 
     async function onSubmit(e) {
         e.preventDefault();
         try {
-            const r = await login(form);
-            if (r?.isAdmin) nav("/admin"); else nav("/");
+            // Prüfen ob es Admin-Credentials sind
+            if (form.email === "Admin@Mail" && form.password === "passwort") {
+                const r = await adminLogin(form);
+                nav("/admin");
+            } else {
+                const r = await login(form);
+                if (r?.isAdmin) nav("/admin"); else nav("/");
+            }
         }
         catch (e) { setErr(e?.response?.message || "Login fehlgeschlagen."); }
     }

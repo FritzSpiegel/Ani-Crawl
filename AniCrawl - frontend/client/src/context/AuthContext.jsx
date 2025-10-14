@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState } from "react";
-import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus } from "../services/auth";
+import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus, adminLogin as adminLoginAPI } from "../services/auth";
 
 const Ctx = createContext(null);
 
@@ -26,6 +26,18 @@ export function AuthProvider({ children }) {
                 return { user: r.user, isAdmin: Boolean(r.admin) };
             }
             throw new Error("Login failed");
+        },
+        async adminLogin(payload) {
+            const r = await adminLoginAPI(payload);
+            if (r?.admin) {
+                // Für Admin speichern wir nur die Admin-Info, kein User-Objekt
+                localStorage.setItem("anicrawl_user", JSON.stringify({ email: payload.email, firstName: "Admin", lastName: "" }));
+                localStorage.setItem("anicrawl_is_admin", JSON.stringify(true));
+                setUser({ email: payload.email, firstName: "Admin", lastName: "" });
+                setIsAdmin(true);
+                return { isAdmin: true };
+            }
+            throw new Error("Admin login failed");
         },
         async logout() {
             await authLogout();

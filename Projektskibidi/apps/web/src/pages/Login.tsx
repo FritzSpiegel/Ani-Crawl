@@ -6,17 +6,31 @@ import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
     const nav = useNavigate();
-    const { login } = useAuth();
+    const { login, adminLogin } = useAuth();
     const [form, setForm] = useState({ email: "", password: "" });
     const [err, setErr] = useState("");
 
-    async function onSubmit(e) {
+    async function onSubmit(e: React.FormEvent) {
         e.preventDefault();
+        setErr(""); // Clear previous errors
         try {
-            const r = await login(form);
-            if (r?.isAdmin) nav("/admin"); else nav("/");
+            // Prüfen ob es Admin-Credentials sind
+            if (form.email === "Admin@Mail" && form.password === "passwort") {
+                console.log("Attempting admin login...");
+                const r = await adminLogin(form);
+                console.log("Admin login response:", r);
+                nav("/admin");
+            } else {
+                console.log("Attempting normal login...");
+                const r = await login(form);
+                console.log("Normal login response:", r);
+                if (r?.isAdmin) nav("/admin"); else nav("/");
+            }
         }
-        catch (e) { setErr(e?.response?.message || "Login fehlgeschlagen."); }
+        catch (e: any) {
+            console.error("Login error:", e);
+            setErr(e?.message || e?.response?.message || "Login fehlgeschlagen.");
+        }
     }
 
     return (

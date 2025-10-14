@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Admin Login Test</title>
+</head>
+
+<body>
+    <h1>Admin Login Test</h1>
+
+    <form id="adminForm">
+        <div>
+            <label>Email:</label>
+            <input type="email" id="email" value="Admin@Mail" />
+        </div>
+        <div>
+            <label>Password:</label>
+            <input type="password" id="password" value="passwort" />
+        </div>
+        <button type="submit">Admin Login</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('adminForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+
+            try {
+                const response = await fetch('http://localhost:3001/api/auth/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = '<p style="color: green;">SUCCESS: ' + JSON.stringify(data) + '</p>';
+                } else {
+                    resultDiv.innerHTML = '<p style="color: red;">ERROR: ' + JSON.stringify(data) + '</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p style="color: red;">NETWORK ERROR: ' + error.message + '</p>';
+            }
+        });
+    </script>
+</body>
+
+</html>

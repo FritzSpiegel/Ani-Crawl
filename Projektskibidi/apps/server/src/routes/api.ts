@@ -5,6 +5,7 @@ import { normalizeTitle } from "../utils/normalize";
 import { loadSearchHtml, loadDetailHtml } from "../crawler/fetch";
 import { parseSearch, parseDetail, deriveSlugAndSourceUrl } from "../crawler/parser";
 import { AnimeSchema } from "@aniworld/shared";
+import { authRouter } from "./auth";
 
 const router = Router();
 
@@ -95,23 +96,23 @@ router.get("/search", async (req, res) => {
 
 router.get("/anime/:slug", async (req, res) => {
   const slug = String(req.params.slug);
-  
+
   try {
     // First try to find by slug
     let doc = await AnimeModel.findOne({ slug }).lean();
-    
+
     // If not found by slug, try by _id (for numeric IDs)
     if (!doc && /^[0-9a-fA-F]{24}$/.test(slug)) {
       doc = await AnimeModel.findById(slug).lean();
     }
-    
+
     // If still not found, try to find by canonical title (for fallback cases)
     if (!doc) {
-      doc = await AnimeModel.findOne({ 
+      doc = await AnimeModel.findOne({
         canonicalTitle: { $regex: new RegExp(slug.replace(/-/g, ' '), 'i') }
       }).lean();
     }
-    
+
     // If still not found, try live crawl (similar to search)
     if (!doc) {
       try {
@@ -119,7 +120,7 @@ router.get("/anime/:slug", async (req, res) => {
         const searchQuery = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         const searchHtml = await loadSearchHtml(searchQuery, true);
         const { topTitle, topHref } = parseSearch(searchHtml);
-        
+
         if (topTitle && topHref) {
           const detailHtml = await loadDetailHtml(topHref, true);
           const partial = parseDetail(detailHtml);
@@ -153,11 +154,11 @@ router.get("/anime/:slug", async (req, res) => {
         console.error(`Failed to crawl anime for slug ${slug}:`, crawlErr);
       }
     }
-    
+
     if (!doc) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Anime not found" } });
     }
-    
+
     const dto = {
       slug: doc.slug,
       canonicalTitle: doc.canonicalTitle,
@@ -197,12 +198,14 @@ router.get("/recommendations", async (req, res) => {
     const recommendations = await AnimeModel.aggregate([
       { $match: { imageUrl: { $exists: true, $ne: null, $ne: "" } } },
       { $sample: { size: 6 } },
-      { $project: {
-        slug: 1,
-        canonicalTitle: 1,
-        imageUrl: 1,
-        _id: 1
-      }}
+      {
+        $project: {
+          slug: 1,
+          canonicalTitle: 1,
+          imageUrl: 1,
+          _id: 1
+        }
+      }
     ]);
 
     // If we have enough recommendations from DB, return them
@@ -219,7 +222,7 @@ router.get("/recommendations", async (req, res) => {
     // If we don't have enough data in DB, crawl some popular anime
     const popularAnimeQueries = [
       "Attack on Titan",
-      "One Piece", 
+      "One Piece",
       "Naruto",
       "Dragon Ball",
       "Demon Slayer",
@@ -230,12 +233,12 @@ router.get("/recommendations", async (req, res) => {
 
     const crawledData = [];
     const needed = 6 - recommendations.length;
-    
+
     for (let i = 0; i < Math.min(needed, popularAnimeQueries.length); i++) {
       try {
         const query = popularAnimeQueries[i];
         const normalized = normalizeTitle(query);
-        
+
         // Check if we already have this one
         const existing = await AnimeModel.findOne({ normalizedTitle: normalized }).lean();
         if (existing) {
@@ -251,7 +254,7 @@ router.get("/recommendations", async (req, res) => {
         // Crawl it live
         const searchHtml = await loadSearchHtml(query, true);
         const { topTitle, topHref } = parseSearch(searchHtml);
-        
+
         if (topTitle && topHref) {
           const detailHtml = await loadDetailHtml(topHref, true);
           const partial = parseDetail(detailHtml);
@@ -310,5 +313,8 @@ router.get("/recommendations", async (req, res) => {
     return res.status(500).json({ error: { code: "FETCH_FAILED", message: err?.message || "Failed to fetch recommendations" } });
   }
 });
+
+// Mount auth routes
+router.use("/auth", authRouter);
 
 export default router;

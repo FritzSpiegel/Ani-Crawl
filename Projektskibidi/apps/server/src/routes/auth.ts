@@ -18,7 +18,7 @@ const nanoid = customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 const createTransporter = () => {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
   if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: SMTP_HOST,
       port: parseInt(SMTP_PORT || '587'),
       auth: { user: SMTP_USER, pass: SMTP_PASS }
@@ -51,7 +51,7 @@ const authenticateToken = async (req: any, res: any, next: any) => {
 router.post('/register', async (req, res) => {
   try {
     const { firstName, lastName, email, password } = req.body;
-    
+
     if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' });
     }
@@ -64,7 +64,7 @@ router.post('/register', async (req, res) => {
 
     // Hash password
     const passHash = await bcrypt.hash(password, 10);
-    
+
     // Generate verification token
     const verifyToken = nanoid();
     const verifyExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
@@ -97,10 +97,10 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    res.json({ 
-      message: 'User registered successfully', 
+    res.json({
+      message: 'User registered successfully',
       email,
-      needsVerification: true 
+      needsVerification: true
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -146,7 +146,7 @@ router.post('/login', async (req, res) => {
     });
 
     // Check if admin (you can customize this logic)
-    const isAdmin = email === process.env.ADMIN_EMAIL;
+    const isAdmin = email === env.adminEmail;
 
     res.json({
       user: {
@@ -281,7 +281,7 @@ router.get('/status', async (req, res) => {
 router.get('/watchlist', authenticateToken, async (req: any, res) => {
   try {
     const items = await WatchlistItem.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    
+
     // If user has watchlist items, return them
     if (items.length > 0) {
       res.json({ items });
@@ -291,25 +291,25 @@ router.get('/watchlist', authenticateToken, async (req: any, res) => {
     // If watchlist is empty, auto-populate with popular anime via live crawler
     const popularAnimeQueries = [
       "Attack on Titan",
-      "One Piece", 
+      "One Piece",
       "Naruto",
       "Demon Slayer"
     ];
 
     const autoAddedItems = [];
-    
+
     for (const query of popularAnimeQueries) {
       try {
         const normalized = normalizeTitle(query);
-        
+
         // Check if we already have this anime in the database
         let animeData = await AnimeModel.findOne({ normalizedTitle: normalized }).lean();
-        
+
         if (!animeData) {
           // Crawl it live if not in database
           const searchHtml = await loadSearchHtml(query, true);
           const { topTitle, topHref } = parseSearch(searchHtml);
-          
+
           if (topTitle && topHref) {
             const detailHtml = await loadDetailHtml(topHref, true);
             const partial = parseDetail(detailHtml);
@@ -424,6 +424,163 @@ router.delete('/watchlist/remove/:id', authenticateToken, async (req: any, res) 
     res.json({ message: 'Item removed from watchlist' });
   } catch (error) {
     console.error('Watchlist remove error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Admin middleware
+const requireAdmin = async (req: any, res: any, next: any) => {
+  const token = req.cookies.token;
+  if (!token) {
+    return res.status(401).json({ message: 'Access token required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, env.jwtSecret) as any;
+    // Check if admin by email comparison with environment variable
+    if (decoded.email === env.adminEmail ||
+      (decoded.userId && decoded.userId === 0)) { // Special admin ID
+      next();
+    } else {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+  } catch (error) {
+    return res.status(403).json({ message: 'Invalid token' });
+  }
+};
+
+// Admin login
+router.post('/admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Check if admin credentials match environment variables
+    if (email === env.adminEmail && password === env.adminPassword) {
+      // Generate admin JWT with special admin ID
+      const token = jwt.sign({
+        userId: 0,
+        email: env.adminEmail,
+        isAdmin: true
+      }, env.jwtSecret, { expiresIn: '7d' });
+
+      // Set cookie
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+
+      res.json({ admin: true });
+    } else {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get all users (admin only)
+router.get('/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const users = await User.find({}, {
+      passHash: 0, // Exclude password hash
+      verifyToken: 0 // Exclude verification token
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      users: users.map(user => ({
+        id: user._id,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        email: user.email,
+        verified: user.verified,
+        created_at: user.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('Admin users error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Delete user (admin only)
+router.delete('/admin/users/:email', requireAdmin, async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    // Don't allow deleting the admin user
+    if (email === env.adminEmail) {
+      return res.status(400).json({ message: 'Cannot delete admin user' });
+    }
+
+    const result = await User.deleteOne({ email });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Also delete user's watchlist items
+    await WatchlistItem.deleteMany({ userId: { $exists: true } });
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Admin delete user error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Temporary route to seed test users (only for development)
+router.post('/admin/seed-users', requireAdmin, async (req, res) => {
+  try {
+    const testUsers = [
+      {
+        firstName: 'Max',
+        lastName: 'Mustermann',
+        email: 'max@example.com',
+        passHash: await bcrypt.hash('password123', 10),
+        verified: true
+      },
+      {
+        firstName: 'Anna',
+        lastName: 'Schmidt',
+        email: 'anna@example.com',
+        passHash: await bcrypt.hash('password123', 10),
+        verified: true
+      },
+      {
+        firstName: 'Peter',
+        lastName: 'Weber',
+        email: 'peter@example.com',
+        passHash: await bcrypt.hash('password123', 10),
+        verified: false
+      }
+    ];
+
+    // Check if users already exist
+    const existingUsers = await User.find({
+      email: { $in: testUsers.map(u => u.email) }
+    });
+
+    if (existingUsers.length === 0) {
+      await User.insertMany(testUsers);
+      res.json({
+        message: 'Test users created successfully',
+        count: testUsers.length
+      });
+    } else {
+      res.json({
+        message: 'Test users already exist',
+        existing: existingUsers.length
+      });
+    }
+  } catch (error) {
+    console.error('Seed users error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

@@ -5,11 +5,11 @@ import { useAuth } from "../context/AuthContext";
 
 interface User {
     id: string;
-    firstName: string;
-    lastName: string;
+    first_name: string;
+    last_name: string;
     email: string;
     verified: boolean;
-    createdAt: string;
+    created_at: string;
 }
 
 export default function Admin() {
@@ -20,16 +20,16 @@ export default function Admin() {
         if (!isAdmin) return;
         let mounted = true;
         (async () => {
-            try { const list = await adminUsers(); if (mounted) setUsers(list); } catch {}
+            try { const list = await adminUsers(); if (mounted) setUsers(list); } catch { }
         })();
         return () => { mounted = false; };
     }, [isAdmin]);
 
-    async function onDelete(id: string) {
+    async function onDelete(email: string) {
         if (!confirm('Diesen Nutzer wirklich löschen?')) return;
         try {
-            await adminDeleteUser(id);
-            setUsers(u => u.filter(x => x.id !== id));
+            await adminDeleteUser(email);
+            setUsers(u => u.filter(x => x.email !== email));
         } catch (e: any) {
             alert(e?.response?.message || 'Löschen fehlgeschlagen.');
         }
@@ -45,7 +45,11 @@ export default function Admin() {
                         <div className="details__meta">
                             <div className="auth-header">
                                 <h2 className="auth-title">Admin-Bereich</h2>
-                                <div className="auth-subtitle">Bitte zuerst normal einloggen. Admin wird automatisch erkannt.</div>
+                                <div className="auth-subtitle">
+                                    Bitte mit Admin-Credentials einloggen:<br />
+                                    E-Mail: Admin@Mail<br />
+                                    Passwort: passwort
+                                </div>
                             </div>
                             {err && <div className="alert alert--error">{err}</div>}
                         </div>
@@ -70,12 +74,12 @@ export default function Admin() {
                                     {users.map(u => (
                                         <tr key={u.id}>
                                             <td>{u.id}</td>
-                                            <td>{u.firstName}</td>
-                                            <td>{u.lastName}</td>
+                                            <td>{u.first_name}</td>
+                                            <td>{u.last_name}</td>
                                             <td>{u.email}</td>
                                             <td>{u.verified ? <span className="badge badge--success">Ja</span> : <span className="badge badge--warn">Nein</span>}</td>
-                                            <td>{new Date(u.createdAt).toLocaleString()}</td>
-                                            <td><button className="btn" onClick={() => onDelete(u.id)}>Löschen</button></td>
+                                            <td>{new Date(u.created_at).toLocaleString()}</td>
+                                            <td><button className="btn" onClick={() => onDelete(u.email)}>Löschen</button></td>
                                         </tr>
                                     ))}
                                 </tbody>

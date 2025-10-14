@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
-import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus } from "../services/auth";
+import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus, adminLogin as adminLoginAPI } from "../services/auth";
 
 interface User {
     id: number;
@@ -12,6 +12,7 @@ interface AuthContextType {
     user: User | null;
     isAdmin: boolean;
     login: (payload: { email: string; password: string }) => Promise<{ user: User; isAdmin: boolean }>;
+    adminLogin: (payload: { email: string; password: string }) => Promise<{ isAdmin: boolean }>;
     logout: () => Promise<void>;
     register: (payload: { firstName: string; lastName: string; email: string; password: string }) => Promise<{ email: string }>;
     verify: ({ email, code }: { email: string; code: string }) => Promise<boolean>;
@@ -49,6 +50,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
             }
             throw new Error("Login failed");
         },
+        async adminLogin(payload: { email: string; password: string }) {
+            const r = await adminLoginAPI(payload);
+            if (r?.admin) {
+                // Für Admin speichern wir nur die Admin-Info, kein User-Objekt
+                const adminUser = { id: 0, firstName: "Admin", lastName: "", email: payload.email };
+                localStorage.setItem("anicrawl_user", JSON.stringify(adminUser));
+                localStorage.setItem("anicrawl_is_admin", JSON.stringify(true));
+                setUser(adminUser);
+                setIsAdmin(true);
+                return { isAdmin: true };
+            }
+            throw new Error("Admin login failed");
+        },
         async logout() {
             await authLogout();
             localStorage.removeItem("anicrawl_user");
@@ -76,7 +90,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
-export function useAuth() { 
+export function useAuth() {
     const context = useContext(Ctx);
     if (!context) {
         throw new Error("useAuth must be used within an AuthProvider");
