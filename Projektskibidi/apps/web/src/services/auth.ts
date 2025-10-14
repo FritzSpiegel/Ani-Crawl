@@ -27,10 +27,6 @@ export async function authLogin(payload: { email: string; password: string }) {
     return await apiRequest('/api/auth/login', { method: 'POST', body: payload });
 }
 
-export async function adminLogin(payload: { email: string; password: string }) {
-    return await apiRequest('/api/auth/admin/login', { method: 'POST', body: payload });
-}
-
 export async function authLogout() {
     return await apiRequest('/api/auth/logout', { method: 'POST' });
 }

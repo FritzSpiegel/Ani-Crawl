@@ -145,17 +145,15 @@ router.post('/login', async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    // Check if admin (you can customize this logic)
-    const isAdmin = email === env.adminEmail;
-
     res.json({
       user: {
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
-        email: user.email
+        email: user.email,
+        isAdmin: user.isAdmin
       },
-      admin: isAdmin
+      admin: user.isAdmin
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -437,9 +435,13 @@ const requireAdmin = async (req: any, res: any, next: any) => {
 
   try {
     const decoded = jwt.verify(token, env.jwtSecret) as any;
-    // Check if admin by email comparison with environment variable
-    if (decoded.email === env.adminEmail ||
-      (decoded.userId && decoded.userId === 0)) { // Special admin ID
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+    
+    if (user.isAdmin) {
+      req.user = user;
       next();
     } else {
       return res.status(403).json({ message: 'Admin access required' });
@@ -449,41 +451,7 @@ const requireAdmin = async (req: any, res: any, next: any) => {
   }
 };
 
-// Admin login
-router.post('/admin/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
-    }
-
-    // Check if admin credentials match environment variables
-    if (email === env.adminEmail && password === env.adminPassword) {
-      // Generate admin JWT with special admin ID
-      const token = jwt.sign({
-        userId: 0,
-        email: env.adminEmail,
-        isAdmin: true
-      }, env.jwtSecret, { expiresIn: '7d' });
-
-      // Set cookie
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-      });
-
-      res.json({ admin: true });
-    } else {
-      return res.status(401).json({ message: 'Invalid admin credentials' });
-    }
-  } catch (error) {
-    console.error('Admin login error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
+// Admin login removed - now using regular login with isAdmin flag
 
 // Get all users (admin only)
 router.get('/admin/users', requireAdmin, async (req, res) => {
@@ -500,6 +468,7 @@ router.get('/admin/users', requireAdmin, async (req, res) => {
         last_name: user.lastName,
         email: user.email,
         verified: user.verified,
+        isAdmin: user.isAdmin || false,
         created_at: user.createdAt
       }))
     });
@@ -531,6 +500,47 @@ router.delete('/admin/users/:email', requireAdmin, async (req, res) => {
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Admin delete user error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Update user (admin only)
+router.post('/admin/users/update', requireAdmin, async (req, res) => {
+  try {
+    const { id, firstName, lastName, email, verified, isAdmin } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    // Find the user by ID
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update the user fields
+    if (firstName !== undefined) user.firstName = firstName;
+    if (lastName !== undefined) user.lastName = lastName;
+    if (email !== undefined) user.email = email;
+    if (verified !== undefined) user.verified = verified;
+    if (isAdmin !== undefined) user.isAdmin = isAdmin;
+
+    await user.save();
+
+    res.json({ 
+      message: 'User updated successfully',
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        verified: user.verified,
+        isAdmin: user.isAdmin
+      }
+    });
+  } catch (error) {
+    console.error('Admin update user error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

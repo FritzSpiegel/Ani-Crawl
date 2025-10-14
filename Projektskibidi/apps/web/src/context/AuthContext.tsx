@@ -1,18 +1,18 @@
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
-import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus, adminLogin as adminLoginAPI } from "../services/auth";
+import { authLogin, authLogout, authRegister, authResend, authVerifyCode, authVerifyStatus } from "../services/auth";
 
 interface User {
     id: number;
     firstName: string;
     lastName: string;
     email: string;
+    isAdmin?: boolean;
 }
 
 interface AuthContextType {
     user: User | null;
     isAdmin: boolean;
     login: (payload: { email: string; password: string }) => Promise<{ user: User; isAdmin: boolean }>;
-    adminLogin: (payload: { email: string; password: string }) => Promise<{ isAdmin: boolean }>;
     logout: () => Promise<void>;
     register: (payload: { firstName: string; lastName: string; email: string; password: string }) => Promise<{ email: string }>;
     verify: ({ email, code }: { email: string; code: string }) => Promise<boolean>;
@@ -32,7 +32,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         catch { return null; }
     });
     const [isAdmin, setIsAdmin] = useState(() => {
-        try { return Boolean(JSON.parse(localStorage.getItem("anicrawl_is_admin") || "false")); }
+        try { 
+            const userData = JSON.parse(localStorage.getItem("anicrawl_user") || "null");
+            return Boolean(userData?.isAdmin); 
+        }
         catch { return false; }
     });
 
@@ -42,26 +45,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         async login(payload: { email: string; password: string }) {
             const r = await authLogin(payload);
             if (r?.user) {
-                localStorage.setItem("anicrawl_user", JSON.stringify(r.user));
-                localStorage.setItem("anicrawl_is_admin", JSON.stringify(Boolean(r.admin)));
-                setUser(r.user);
-                setIsAdmin(Boolean(r.admin));
-                return { user: r.user, isAdmin: Boolean(r.admin) };
+                const userWithAdmin = { ...r.user, isAdmin: r.user.isAdmin || r.admin };
+                localStorage.setItem("anicrawl_user", JSON.stringify(userWithAdmin));
+                localStorage.setItem("anicrawl_is_admin", JSON.stringify(Boolean(userWithAdmin.isAdmin)));
+                setUser(userWithAdmin);
+                setIsAdmin(Boolean(userWithAdmin.isAdmin));
+                return { user: userWithAdmin, isAdmin: Boolean(userWithAdmin.isAdmin) };
             }
             throw new Error("Login failed");
-        },
-        async adminLogin(payload: { email: string; password: string }) {
-            const r = await adminLoginAPI(payload);
-            if (r?.admin) {
-                // Für Admin speichern wir nur die Admin-Info, kein User-Objekt
-                const adminUser = { id: 0, firstName: "Admin", lastName: "", email: payload.email };
-                localStorage.setItem("anicrawl_user", JSON.stringify(adminUser));
-                localStorage.setItem("anicrawl_is_admin", JSON.stringify(true));
-                setUser(adminUser);
-                setIsAdmin(true);
-                return { isAdmin: true };
-            }
-            throw new Error("Admin login failed");
         },
         async logout() {
             await authLogout();

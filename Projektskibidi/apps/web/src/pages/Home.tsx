@@ -1,6 +1,7 @@
 import Header from "../components/Header";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 
 interface Anime {
     id: number;
@@ -22,6 +23,7 @@ export default function Home() {
     const [items, setItems] = useState<Anime[]>(more(0, 20));
     const [page, setPage] = useState(1);
     const [recs, setRecs] = useState<Anime[]>([]);
+    const { user, isAdmin } = useAuth();
 
     useEffect(() => {
         const onScroll = () => { 
@@ -76,6 +78,26 @@ export default function Home() {
     return (
         <div>
             <Header />
+
+            {/* Admin Dashboard Button */}
+            {user && isAdmin && (
+                <div style={{ padding: "16px", textAlign: "center", backgroundColor: "#f5f5f5", borderBottom: "1px solid #ddd" }}>
+                    <Link 
+                        to="/admin" 
+                        style={{
+                            backgroundColor: "#ff6b6b",
+                            color: "white",
+                            padding: "12px 24px",
+                            borderRadius: "8px",
+                            textDecoration: "none",
+                            fontWeight: "bold",
+                            display: "inline-block"
+                        }}
+                    >
+                        🔧 Admin Dashboard
+                    </Link>
+                </div>
+            )}
 
 			{/* Schwärzlers Empfehlungen */}
 			<section className="section">

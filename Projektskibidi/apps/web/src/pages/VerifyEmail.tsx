@@ -5,21 +5,22 @@ import { useAuth } from "../context/AuthContext";
 
 export default function VerifyEmail() {
     const nav = useNavigate();
-    const email = useMemo(() => new URLSearchParams(useLocation().search).get("email") || "", []);
+    const location = useLocation();
+    const email = useMemo(() => new URLSearchParams(location.search).get("email") || "", [location.search]);
     const [code, setCode] = useState("");
     const [err, setErr] = useState("");
     const [ok, setOk] = useState("");
     const { verify, resend } = useAuth();
 
-    async function onSubmit(e) {
+    async function onSubmit(e: React.FormEvent) {
         e.preventDefault();
         setErr(""); setOk("");
         try {
             await verify({ email, code });
             setOk("E-Mail bestätigt. Bitte einloggen.");
             setTimeout(() => nav("/login"), 800);
-        } catch (e) {
-            setErr(e?.response?.message || "Bestätigung fehlgeschlagen.");
+        } catch (err: any) {
+            setErr(err?.response?.message || "Bestätigung fehlgeschlagen.");
         }
     }
 
