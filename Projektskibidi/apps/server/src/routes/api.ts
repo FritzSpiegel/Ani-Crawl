@@ -196,7 +196,7 @@ router.get("/recommendations", async (req, res) => {
   try {
     // First try to get recommendations from database
     const recommendations = await AnimeModel.aggregate([
-      { $match: { imageUrl: { $exists: true, $ne: null, $ne: "" } } },
+      { $match: { imageUrl: { $exists: true, $nin: [null, ""] } } },
       { $sample: { size: 6 } },
       {
         $project: {
