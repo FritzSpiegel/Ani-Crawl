@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { customAlphabet } from "nanoid";
@@ -112,19 +113,40 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    const emailNorm = String(email || '').trim().toLowerCase();
 
-    if (!email || !password) {
+    if (!emailNorm || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
+    // Require DB connection; if not connected, fail clearly
+    const isDbConnected = mongoose.connection?.readyState === 1;
+    if (!isDbConnected) {
+      return res.status(503).json({ message: 'Service unavailable (database not connected)' });
+    }
+
     // Find user
-    const user = await User.findOne({ email });
+    // Case-insensitive exact email match
+    const emailRegex = new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i');
+    const user = await User.findOne({ email: emailRegex });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Check password
-    const isValid = await bcrypt.compare(password, user.passHash);
+    const isBcrypt = typeof user.passHash === 'string' && /^\$2[aby]\$/.test(user.passHash);
+    let isValid = false;
+    if (isBcrypt) {
+      try {
+        isValid = await bcrypt.compare(password, user.passHash);
+      } catch (e) {
+        // If stored hash is malformed, treat as invalid credentials (no 500)
+        isValid = false;
+      }
+    } else {
+      // Fallback for legacy plaintext passwords in DB (dev-safety)
+      isValid = String(password) === String(user.passHash);
+    }
     if (!isValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
@@ -141,7 +163,7 @@ router.post('/login', async (req, res) => {
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
@@ -157,7 +179,36 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    // Avoid leaking server errors to client; respond as invalid credentials
+    res.status(401).json({ message: 'Invalid credentials' });
+  }
+});
+
+// Diagnostics (dev only): check email record + hash status
+router.post('/diagnostics/login-check', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ message: 'Not found' });
+    }
+    const { email } = req.body || {};
+    const emailNorm = String(email || '').trim().toLowerCase();
+    if (!emailNorm) return res.status(400).json({ message: 'Email required' });
+
+    const isDbConnected = mongoose.connection?.readyState === 1;
+    const emailRegex = new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i');
+    const user = isDbConnected ? await User.findOne({ email: emailRegex }) : null;
+    const info = user ? {
+      id: String(user._id || ''),
+      email: user.email,
+      verified: !!user.verified,
+      isAdmin: !!user.isAdmin,
+      hashType: typeof user.passHash === 'string' && /^\$2[aby]\$/.test(user.passHash) ? 'bcrypt' : (typeof user.passHash === 'string' ? 'plaintext_or_other' : 'missing'),
+      passHashSample: typeof user.passHash === 'string' ? user.passHash.slice(0, 7) + '...' : null
+    } : null;
+    return res.json({ dbConnected: isDbConnected, userFound: !!user, user: info });
+  } catch (err) {
+    console.error('Diagnostics error:', err);
+    return res.status(500).json({ message: 'Diagnostics failed' });
   }
 });
 
@@ -279,96 +330,11 @@ router.get('/status', async (req, res) => {
 router.get('/watchlist', authenticateToken, async (req: any, res) => {
   try {
     const items = await WatchlistItem.find({ userId: req.user._id }).sort({ createdAt: -1 });
-
-    // If user has watchlist items, return them
-    if (items.length > 0) {
-      res.json({ items });
-      return;
-    }
-
-    // If watchlist is empty, auto-populate with popular anime via live crawler
-    const popularAnimeQueries = [
-      "Attack on Titan",
-      "One Piece",
-      "Naruto",
-      "Demon Slayer"
-    ];
-
-    const autoAddedItems = [];
-
-    for (const query of popularAnimeQueries) {
-      try {
-        const normalized = normalizeTitle(query);
-
-        // Check if we already have this anime in the database
-        let animeData = await AnimeModel.findOne({ normalizedTitle: normalized }).lean();
-
-        if (!animeData) {
-          // Crawl it live if not in database
-          const searchHtml = await loadSearchHtml(query, true);
-          const { topTitle, topHref } = parseSearch(searchHtml);
-
-          if (topTitle && topHref) {
-            const detailHtml = await loadDetailHtml(topHref, true);
-            const partial = parseDetail(detailHtml);
-            const { slug, sourceUrl } = deriveSlugAndSourceUrl(topTitle, topHref);
-
-            const now = new Date();
-            animeData = await AnimeModel.findOneAndUpdate(
-              { slug },
-              {
-                $set: {
-                  slug,
-                  canonicalTitle: partial.canonicalTitle || topTitle,
-                  altTitles: Array.from(new Set([...(partial.altTitles || []), topTitle])).filter(Boolean),
-                  normalizedTitle: normalizeTitle(partial.canonicalTitle || topTitle),
-                  description: partial.description || "",
-                  imageUrl: partial.imageUrl || undefined,
-                  yearStart: partial.yearStart ?? undefined,
-                  yearEnd: partial.yearEnd ?? undefined,
-                  genres: partial.genres || [],
-                  cast: partial.cast || [],
-                  producers: partial.producers || [],
-                  episodes: partial.episodes || [],
-                  sourceUrl,
-                  lastCrawledAt: now,
-                },
-              },
-              { upsert: true, new: true }
-            ).lean();
-          }
-        }
-
-        if (animeData) {
-          // Add to user's watchlist
-          const watchlistItem = new WatchlistItem({
-            userId: req.user._id,
-            itemId: animeData.slug,
-            title: animeData.canonicalTitle,
-            image: animeData.imageUrl
-          });
-
-          try {
-            await watchlistItem.save();
-            autoAddedItems.push({
-              id: watchlistItem.itemId,
-              title: watchlistItem.title,
-              image: watchlistItem.image
-            });
-          } catch (err: any) {
-            // Skip if already exists (unique constraint)
-            if (!err.message?.includes('duplicate')) {
-              console.error(`Failed to add ${query} to watchlist:`, err);
-            }
-          }
-        }
-      } catch (err) {
-        console.error(`Failed to crawl and add ${query}:`, err);
-        // Continue with next anime
-      }
-    }
-
-    res.json({ items: autoAddedItems });
+    res.json({ items: items.map(item => ({
+      id: item.itemId,
+      title: item.title,
+      image: item.image
+    })) });
   } catch (error) {
     console.error('Watchlist fetch error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -394,20 +360,19 @@ router.post('/watchlist/add', authenticateToken, async (req: any, res) => {
       return res.status(400).json({ message: 'ID and title are required' });
     }
 
-    // Check if already exists
-    const existing = await WatchlistItem.findOne({ userId: req.user._id, itemId: id });
-    if (existing) {
-      return res.status(400).json({ message: 'Item already in watchlist' });
-    }
+    // Use upsert to avoid duplicates
+    const item = await WatchlistItem.findOneAndUpdate(
+      { userId: req.user._id, itemId: id },
+      { 
+        userId: req.user._id,
+        itemId: id,
+        title,
+        image,
+        createdAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
 
-    const item = new WatchlistItem({
-      userId: req.user._id,
-      itemId: id,
-      title,
-      image
-    });
-
-    await item.save();
     res.json({ message: 'Item added to watchlist' });
   } catch (error) {
     console.error('Watchlist add error:', error);

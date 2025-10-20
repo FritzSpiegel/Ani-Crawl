@@ -18,18 +18,32 @@ export default function Register() {
     return (
         <div>
             <Header />
-            <main className="container" style={{ padding: "32px 0" }}>
-                <h1 className="page-title">Registrieren</h1>
-                <form onSubmit={onSubmit} className="details__meta" style={{ maxWidth: 520 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                        <label>Vorname<input className="header-search__input" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, firstName: e.target.value })} /></label>
-                        <label>Nachname<input className="header-search__input" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, lastName: e.target.value })} /></label>
-                    </div>
-                    <label>E-Mail<input className="header-search__input" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
-                    <label>Passwort<input type="password" className="header-search__input" style={{ border: '1px solid #333', padding: 10, borderRadius: 10 }} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
-                    {err && <div style={{ color: '#ff6b6b', fontWeight: 700 }}>{err}</div>}
-                    <div className="cta-row"><button className="btn btn--primary" type="submit">Registrieren</button></div>
-                </form>
+            <main className="container auth-page">
+                <div className="auth-card">
+                    <h1 className="auth-title">Registrieren</h1>
+                    <form onSubmit={onSubmit} className="auth-form">
+                        <div className="form-row form-row--grid">
+                            <div className="form-row">
+                                <label className="label">Vorname</label>
+                                <input className="input" onChange={e => setForm({ ...form, firstName: e.target.value })} />
+                            </div>
+                            <div className="form-row">
+                                <label className="label">Nachname</label>
+                                <input className="input" onChange={e => setForm({ ...form, lastName: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="form-row">
+                            <label className="label">E-Mail</label>
+                            <input className="input" onChange={e => setForm({ ...form, email: e.target.value })} />
+                        </div>
+                        <div className="form-row">
+                            <label className="label">Passwort</label>
+                            <input type="password" className="input" onChange={e => setForm({ ...form, password: e.target.value })} />
+                        </div>
+                        {err && <div className="error">{err}</div>}
+                        <div className="actions"><button className="button button--primary" type="submit">Registrieren</button></div>
+                    </form>
+                </div>
             </main>
         </div>
     );

@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:3001';
+const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '');
 
 interface ApiRequestOptions {
     method?: string;
@@ -8,14 +8,16 @@ interface ApiRequestOptions {
 
 async function apiRequest(path: string, options: ApiRequestOptions = {}) {
     const { method = 'GET', body, headers = {} } = options;
-    const res = await fetch(`${API_BASE}${path}`, {
+
+    const url = `${API_BASE}${path}`;
+    const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', ...headers },
         credentials: 'include',
         body: body ? JSON.stringify(body) : undefined
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(data?.message || 'Request failed'), { response: data });
+    if (!res.ok) throw Object.assign(new Error((data?.message || 'Request failed') + ` (status ${res.status})`), { response: data, status: res.status });
     return data;
 }
 
@@ -32,36 +34,33 @@ export async function authLogout() {
 }
 
 export async function authVerifyCode({ email, code }: { email: string; code: string }) {
-    // For the unified backend, verification is auto-approved, so we just return success
-    return { verified: true };
+    return await apiRequest('/api/auth/verify-code', { method: 'POST', body: { email, code } });
 }
 
 export async function authResend(email: string) {
-    // For the unified backend, no email verification needed
-    return { message: 'No verification needed' };
+    return await apiRequest('/api/auth/resend', { method: 'POST', body: { email } });
 }
 
 export async function authVerifyStatus(email: string) {
-    // For the unified backend, users are auto-verified
-    return { verified: true };
+    return await apiRequest(`/api/auth/status?email=${encodeURIComponent(email)}`);
 }
 
 export async function wlList() {
-    const r = await apiRequest('/auth/watchlist');
+    const r = await apiRequest('/api/auth/watchlist');
     return r.items || [];
 }
 
 export async function wlContains(id: string) {
-    const r = await apiRequest(`/auth/watchlist/contains/${encodeURIComponent(id)}`);
+    const r = await apiRequest(`/api/auth/watchlist/contains/${encodeURIComponent(id)}`);
     return !!r.exists;
 }
 
 export async function wlAdd(payload: { id: string; title: string; image?: string }) {
-    return await apiRequest('/auth/watchlist/add', { method: 'POST', body: { id: payload.id, title: payload.title, image: payload.image } });
+    return await apiRequest('/api/auth/watchlist/add', { method: 'POST', body: { id: payload.id, title: payload.title, image: payload.image } });
 }
 
 export async function wlRemove(id: string) {
-    return await apiRequest(`/auth/watchlist/remove/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return await apiRequest(`/api/auth/watchlist/remove/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 // Admin functions

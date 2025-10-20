@@ -22,9 +22,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
 }
 
 export async function loadSearchHtml(query: string, fetchLive?: boolean): Promise<string> {
-  if (!fetchLive && !env.allowLiveFetch) {
-    return await fs.readFile(env.staticSearchHtmlPath, "utf-8");
-  }
+  // Always allow live fetch; fallback to static file only if live fails
   // AniWorld search results are populated via client-side AJAX.
   // To get results server-side, query the same AJAX endpoint directly and synthesize minimal HTML
   // that our existing parser can understand.
@@ -59,9 +57,7 @@ export async function loadSearchHtml(query: string, fetchLive?: boolean): Promis
 }
 
 export async function loadDetailHtml(href: string, fetchLive?: boolean): Promise<string> {
-  if (!fetchLive && !env.allowLiveFetch) {
-    return await fs.readFile(env.staticDetailHtmlPath, "utf-8");
-  }
+  // Always allow live fetch; fallback to static file only if live fails
   const base = "https://aniworld.to";
   const url = href.startsWith("http") ? href : `${base}${href}`;
   return withRetry(async () => (await http.get(url)).data as string);

@@ -4,24 +4,57 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 interface Anime {
-    id: number;
+    id: number | string;
     slug?: string;
     title: string;
     img?: string;
 }
 
-function more(offset: number, count: number): Anime[] { 
-    return Array.from({ length: count }, (_, i) => ({ 
-        id: 100 + offset + i, 
-        title: `Anime #${offset + i + 1}`, 
-        img: "",
-        slug: `anime-${offset + i + 1}`
-    })); 
+// Popular anime queries to crawl from AniWorld
+const POPULAR_ANIME_QUERIES = [
+    "Attack on Titan", "One Piece", "Naruto", "Dragon Ball", "Demon Slayer",
+    "My Hero Academia", "Death Note", "Fullmetal Alchemist", "Bleach", "Hunter x Hunter",
+    "Tokyo Ghoul", "Sword Art Online", "Fairy Tail", "Black Clover", "Jujutsu Kaisen",
+    "Chainsaw Man", "Spy x Family", "Mob Psycho 100", "One Punch Man", "Re:Zero",
+    "Konosuba", "Overlord", "The Rising of the Shield Hero", "That Time I Got Reincarnated as a Slime",
+    "Dr. Stone", "Fire Force", "The Promised Neverland", "Vinland Saga", "Beastars",
+    "Your Name", "Spirited Away", "Princess Mononoke", "Howl's Moving Castle", "Grave of the Fireflies"
+];
+
+async function fetchMoreAnime(offset: number, count: number): Promise<Anime[]> {
+    try {
+        // Prefer DB-backed list for scale
+        const listRes = await fetch(`/api/anime?skip=${offset}&limit=${count}`);
+        if (listRes.ok) {
+            const json = await listRes.json();
+            return (json.items || []) as Anime[];
+        }
+        // Fallback: use popular queries (older path)
+        const queries = POPULAR_ANIME_QUERIES.slice(offset, offset + count);
+        const animePromises = queries.map(async (query, index) => ({
+            id: offset + index + 1,
+            slug: query.toLowerCase().replace(/\s+/g, '-'),
+            title: query,
+            img: ""
+        }));
+        return await Promise.all(animePromises);
+    } catch (error) {
+        console.error('Failed to fetch anime:', error);
+        // Fallback to mock data
+        return Array.from({ length: count }, (_, i) => ({ 
+            id: 100 + offset + i, 
+            title: `Anime #${offset + i + 1}`, 
+            img: "",
+            slug: `anime-${offset + i + 1}`
+        }));
+    }
 }
 
 export default function Home() {
-    const [items, setItems] = useState<Anime[]>(more(0, 20));
+    const [items, setItems] = useState<Anime[]>([]);
     const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [pageSize] = useState(48);
     const [recs, setRecs] = useState<Anime[]>([]);
     const { user, isAdmin } = useAuth();
 
@@ -35,16 +68,24 @@ export default function Home() {
     }, []);
     
     useEffect(() => { 
-        if (page > 1) setItems(prev => [...prev, ...more(prev.length, 20)]); 
-    }, [page]);
+        if (page > 1 && !loading) {
+            setLoading(true);
+            fetchMoreAnime(items.length, pageSize).then(newItems => {
+                setItems(prev => [...prev, ...newItems]);
+                setLoading(false);
+            });
+        }
+    }, [page, items.length, loading, pageSize]);
     
+    // Load initial recommendations and anime
     useEffect(() => {
         let mounted = true;
         (async () => {
             try {
-                const response = await fetch('/api/recommendations');
-                if (response.ok) {
-                    const recommendations: Anime[] = await response.json();
+                // Load recommendations
+                const recResponse = await fetch('/api/recommendations');
+                if (recResponse.ok) {
+                    const recommendations: Anime[] = await recResponse.json();
                     if (mounted) setRecs(recommendations);
                 } else {
                     // Fallback to mock data if API fails
@@ -58,8 +99,12 @@ export default function Home() {
                     ];
                     if (mounted) setRecs(mockRecs);
                 }
+
+                // Load initial anime list (bigger batch for long scroll)
+                const initialAnime = await fetchMoreAnime(0, pageSize);
+                if (mounted) setItems(initialAnime);
             } catch (error) {
-                console.error('Failed to fetch recommendations:', error);
+                console.error('Failed to fetch data:', error);
                 // Fallback to mock data on error
                 const mockRecs: Anime[] = [
                     { id: 1, title: "Attack on Titan", img: "", slug: "attack-on-titan" },
@@ -69,7 +114,10 @@ export default function Home() {
                     { id: 5, title: "Demon Slayer", img: "", slug: "demon-slayer" },
                     { id: 6, title: "My Hero Academia", img: "", slug: "my-hero-academia" }
                 ];
-                if (mounted) setRecs(mockRecs);
+                if (mounted) {
+                    setRecs(mockRecs);
+                    setItems(mockRecs);
+                }
             }
         })();
         return () => { mounted = false; };
@@ -155,13 +203,18 @@ export default function Home() {
             <main className="container" style={{ padding: "24px 0 96px" }}>
                 <h3 className="section-title">Alle Titel</h3>
                 <div className="grid">
-                    {items.map(a => (
-                        <Link key={a.id} to={`/anime/${a.id}`} className="media-card">
-                            <img className="media-card__img" src={a.img} alt="" />
+                    {items.filter(a => a.img && a.img.trim().length > 0).map(a => (
+                        <Link key={a.id} to={`/anime/${a.slug || a.id}`} className="media-card">
+                            {a.img && <img className="media-card__img" src={a.img} alt={a.title} />}
                             <div className="media-card__title">{a.title}</div>
                         </Link>
                     ))}
                 </div>
+                {loading && (
+                    <div style={{ textAlign: "center", padding: "20px", color: "#9fb0d0" }}>
+                        Lädt weitere Anime...
+                    </div>
+                )}
             </main>
         </div>
     );

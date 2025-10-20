@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
     const nav = useNavigate();
-    const { login, adminLogin } = useAuth();
+    const { login } = useAuth();
     const [form, setForm] = useState({ email: "", password: "" });
     const [err, setErr] = useState("");
 
@@ -14,18 +14,8 @@ export default function Login() {
         e.preventDefault();
         setErr(""); // Clear previous errors
         try {
-            // Prüfen ob es Admin-Credentials sind
-            if (form.email === "Admin@Mail" && form.password === "passwort") {
-                console.log("Attempting admin login...");
-                const r = await adminLogin(form);
-                console.log("Admin login response:", r);
-                nav("/admin");
-            } else {
-                console.log("Attempting normal login...");
-                const r = await login(form);
-                console.log("Normal login response:", r);
-                if (r?.isAdmin) nav("/admin"); else nav("/");
-            }
+            const r = await login(form);
+            if (r?.isAdmin) nav("/admin"); else nav("/");
         }
         catch (e: any) {
             console.error("Login error:", e);

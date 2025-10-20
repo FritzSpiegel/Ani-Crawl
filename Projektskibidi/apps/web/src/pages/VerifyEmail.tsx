@@ -32,15 +32,23 @@ export default function VerifyEmail() {
     return (
         <div>
             <Header />
-            <main className="container" style={{ padding: "32px 0" }}>
-                <h1 className="page-title">E-Mail bestätigen</h1>
-                <p>Wir haben eine E-Mail an <b>{email}</b> gesendet. Gib den 6-stelligen Code ein.</p>
-                <form onSubmit={onSubmit} className="details__meta" style={{ maxWidth: 320 }}>
-                    <input value={code} onChange={e => setCode(e.target.value)} placeholder="123456" className="header-search__input" style={{ border: '1px solid #333', padding: 12, borderRadius: 12 }} />
-                    {err && <div style={{ color: '#ff6b6b', fontWeight: 700 }}>{err}</div>}
-                    {ok && <div style={{ color: '#4caf50', fontWeight: 700 }}>{ok}</div>}
-                    <div className="cta-row"><button className="btn btn--primary" type="submit">Bestätigen</button><button type="button" className="btn" onClick={onResend}>Code erneut senden</button></div>
-                </form>
+            <main className="container auth-page">
+                <div className="auth-card">
+                    <h1 className="auth-title">E-Mail bestätigen</h1>
+                    <p className="hint">Wir haben eine E-Mail an <b>{email}</b> gesendet. Gib den 6-stelligen Code ein.</p>
+                    <form onSubmit={onSubmit} className="auth-form" style={{ maxWidth: 360, margin: '0 auto' }}>
+                        <div className="form-row">
+                            <label className="label">Bestätigungscode</label>
+                            <input value={code} onChange={e => setCode(e.target.value)} placeholder="123456" className="input" />
+                        </div>
+                        {err && <div className="error">{err}</div>}
+                        {ok && <div className="hint" style={{ color: '#9ff0b8' }}>{ok}</div>}
+                        <div className="actions">
+                            <button className="button button--primary" type="submit">Bestätigen</button>
+                            <button type="button" className="button" onClick={onResend}>Code erneut senden</button>
+                        </div>
+                    </form>
+                </div>
             </main>
         </div>
     );

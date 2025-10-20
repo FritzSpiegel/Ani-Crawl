@@ -16,12 +16,20 @@ export function createApp() {
   app.use(helmet());
   app.use(compression());
   app.use(cors({
-    origin: [env.appBaseUrl, 'http://localhost:5174', 'http://127.0.0.1:8080'],
-    credentials: true
+    origin: (origin, callback) => callback(null, true), // allow all origins (dev)
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
+  app.options('*', cors({
+    origin: (origin, callback) => callback(null, true),
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
   }));
   app.use(express.json());
   app.use(cookieParser());
-  app.use(rateLimit({ windowMs: 60_000, limit: 10 }));
+  // Removed request rate limiting for crawler-heavy usage
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.use("/api", api);
