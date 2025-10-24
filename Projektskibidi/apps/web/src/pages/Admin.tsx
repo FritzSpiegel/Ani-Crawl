@@ -14,9 +14,35 @@ interface User {
     isAdmin?: boolean;
 }
 
+interface AdminStats {
+    users: {
+        total: number;
+        verified: number;
+        admins: number;
+        recent: number;
+        verificationRate: number;
+    };
+    watchlist: {
+        totalItems: number;
+        uniqueUsers: number;
+        averagePerUser: number;
+        maxPerUser: number;
+        minPerUser: number;
+    };
+    anime: {
+        total: number;
+        recentlyCrawled: number;
+    };
+    registrationData: Array<{ date: string; count: number }>;
+    popularAnime: Array<{ slug: string; title: string; watchlistCount: number }>;
+    watchlistDistribution: Array<{ _id: number; users: number }>;
+    recentActivity: Array<{ firstName: string; lastName: string; email: string; createdAt: string }>;
+}
+
 export default function Admin() {
     const { user, isAdmin } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
+    const [stats, setStats] = useState<AdminStats | null>(null);
     const [err, setErr] = useState("");
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [editForm, setEditForm] = useState({
@@ -30,7 +56,22 @@ export default function Admin() {
         if (!isAdmin) return;
         let mounted = true;
         (async () => {
-            try { const list = await adminUsers(); if (mounted) setUsers(list); } catch { }
+            try { 
+                const list = await adminUsers(); 
+                if (mounted) setUsers(list); 
+            } catch { }
+            
+            try {
+                const response = await fetch('/api/auth/admin/stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (mounted) setStats(data.stats);
+                }
+            } catch (error) {
+                console.error('Failed to fetch stats:', error);
+            }
         })();
         return () => { mounted = false; };
     }, [isAdmin]);
@@ -144,6 +185,243 @@ export default function Admin() {
             <Header />
             <main className="container" style={{ padding: "24px 0 96px" }}>
                 <h1 className="page-title">Admin Dashboard</h1>
+
+                {/* Statistics Overview */}
+                {stats && (
+                    <div style={{ 
+                        display: "grid", 
+                        gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", 
+                        gap: "20px", 
+                        marginBottom: "40px" 
+                    }}>
+                        {/* User Statistics */}
+                        <div style={{ 
+                            backgroundColor: "#2a2a2a", 
+                            padding: "20px", 
+                            borderRadius: "10px",
+                            border: "1px solid #444"
+                        }}>
+                            <h3 style={{ color: "#007bff", marginBottom: "15px" }}>👥 Benutzer</h3>
+                            <div style={{ color: "#ccc", fontSize: "14px" }}>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Gesamt:</strong> {stats.users.total}
+                                </div>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Verifiziert:</strong> {stats.users.verified} ({stats.users.verificationRate}%)
+                                </div>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Admins:</strong> {stats.users.admins}
+                                </div>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Neu (7 Tage):</strong> {stats.users.recent}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Watchlist Statistics */}
+                        <div style={{ 
+                            backgroundColor: "#2a2a2a", 
+                            padding: "20px", 
+                            borderRadius: "10px",
+                            border: "1px solid #444"
+                        }}>
+                            <h3 style={{ color: "#28a745", marginBottom: "15px" }}>📺 Watchlist</h3>
+                            <div style={{ color: "#ccc", fontSize: "14px" }}>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Einträge:</strong> {stats.watchlist.totalItems}
+                                </div>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Benutzer:</strong> {stats.watchlist.uniqueUsers}
+                                </div>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Ø pro User:</strong> {stats.watchlist.averagePerUser}
+                                </div>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Max:</strong> {stats.watchlist.maxPerUser}
+                                </div>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Min:</strong> {stats.watchlist.minPerUser}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Anime Statistics */}
+                        <div style={{ 
+                            backgroundColor: "#2a2a2a", 
+                            padding: "20px", 
+                            borderRadius: "10px",
+                            border: "1px solid #444"
+                        }}>
+                            <h3 style={{ color: "#ff6b6b", marginBottom: "15px" }}>🎬 Anime</h3>
+                            <div style={{ color: "#ccc", fontSize: "14px" }}>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Gesamt:</strong> {stats.anime.total}
+                                </div>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <strong>Neu gecrawlt (24h):</strong> {stats.anime.recentlyCrawled}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Popular Anime */}
+                {stats && stats.popularAnime.length > 0 && (
+                    <div style={{ 
+                        backgroundColor: "#2a2a2a", 
+                        padding: "20px", 
+                        borderRadius: "10px",
+                        marginBottom: "40px",
+                        border: "1px solid #444"
+                    }}>
+                        <h3 style={{ color: "#fff", marginBottom: "15px" }}>🔥 Beliebte Anime</h3>
+                        <div style={{ display: "grid", gap: "10px" }}>
+                            {stats.popularAnime.slice(0, 5).map((anime, index) => (
+                                <div key={anime.slug} style={{ 
+                                    display: "flex", 
+                                    justifyContent: "space-between", 
+                                    alignItems: "center",
+                                    padding: "10px",
+                                    backgroundColor: "#333",
+                                    borderRadius: "5px"
+                                }}>
+                                    <span style={{ color: "#fff" }}>
+                                        {index + 1}. {anime.title}
+                                    </span>
+                                    <span style={{ color: "#007bff", fontSize: "12px" }}>
+                                        {anime.watchlistCount} Watchlist-Einträge
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Recent Activity */}
+                {stats && stats.recentActivity.length > 0 && (
+                    <div style={{ 
+                        backgroundColor: "#2a2a2a", 
+                        padding: "20px", 
+                        borderRadius: "10px",
+                        marginBottom: "40px",
+                        border: "1px solid #444"
+                    }}>
+                        <h3 style={{ color: "#fff", marginBottom: "15px" }}>🕒 Letzte Aktivitäten</h3>
+                        <div style={{ display: "grid", gap: "10px" }}>
+                            {stats.recentActivity.map((activity, index) => (
+                                <div key={index} style={{ 
+                                    display: "flex", 
+                                    justifyContent: "space-between", 
+                                    alignItems: "center",
+                                    padding: "10px",
+                                    backgroundColor: "#333",
+                                    borderRadius: "5px"
+                                }}>
+                                    <span style={{ color: "#fff" }}>
+                                        {activity.firstName} {activity.lastName} ({activity.email})
+                                    </span>
+                                    <span style={{ color: "#ccc", fontSize: "12px" }}>
+                                        {new Date(activity.createdAt).toLocaleDateString('de-DE')}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Watchlist Distribution */}
+                {stats && stats.watchlistDistribution.length > 0 && (
+                    <div style={{ 
+                        backgroundColor: "#2a2a2a", 
+                        padding: "20px", 
+                        borderRadius: "10px",
+                        marginBottom: "40px",
+                        border: "1px solid #444"
+                    }}>
+                        <h3 style={{ color: "#fff", marginBottom: "15px" }}>📊 Watchlist-Verteilung</h3>
+                        <div style={{ display: "grid", gap: "8px" }}>
+                            {stats.watchlistDistribution.map((dist, index) => (
+                                <div key={index} style={{ 
+                                    display: "flex", 
+                                    justifyContent: "space-between", 
+                                    alignItems: "center",
+                                    padding: "8px 12px",
+                                    backgroundColor: "#333",
+                                    borderRadius: "5px"
+                                }}>
+                                    <span style={{ color: "#fff" }}>
+                                        {dist._id} Anime in Watchlist
+                                    </span>
+                                    <span style={{ color: "#28a745", fontSize: "14px" }}>
+                                        {dist.users} Benutzer
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ 
+                            marginTop: "15px",
+                            fontSize: "12px",
+                            color: "#ccc",
+                            textAlign: "center"
+                        }}>
+                            Verteilung der Watchlist-Größen
+                        </div>
+                    </div>
+                )}
+
+                {/* Registration Chart */}
+                {stats && stats.registrationData.length > 0 && (
+                    <div style={{ 
+                        backgroundColor: "#2a2a2a", 
+                        padding: "20px", 
+                        borderRadius: "10px",
+                        marginBottom: "40px",
+                        border: "1px solid #444"
+                    }}>
+                        <h3 style={{ color: "#fff", marginBottom: "15px" }}>📈 Registrierungen (30 Tage)</h3>
+                        <div style={{ display: "flex", alignItems: "end", gap: "2px", height: "100px" }}>
+                            {stats.registrationData.slice(-14).map((day, index) => {
+                                const maxCount = Math.max(...stats.registrationData.map(d => d.count));
+                                const height = maxCount > 0 ? (day.count / maxCount) * 80 : 0;
+                                return (
+                                    <div key={day.date} style={{ 
+                                        display: "flex", 
+                                        flexDirection: "column", 
+                                        alignItems: "center",
+                                        flex: 1
+                                    }}>
+                                        <div style={{
+                                            width: "100%",
+                                            height: `${height}px`,
+                                            backgroundColor: "#007bff",
+                                            borderRadius: "2px 2px 0 0",
+                                            minHeight: day.count > 0 ? "4px" : "0px"
+                                        }}></div>
+                                        <div style={{ 
+                                            fontSize: "10px", 
+                                            color: "#ccc", 
+                                            marginTop: "5px",
+                                            transform: "rotate(-45deg)",
+                                            whiteSpace: "nowrap"
+                                        }}>
+                                            {new Date(day.date).getDate()}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div style={{ 
+                            display: "flex", 
+                            justifyContent: "space-between", 
+                            marginTop: "10px",
+                            fontSize: "12px",
+                            color: "#ccc"
+                        }}>
+                            <span>Gesamt: {stats.registrationData.reduce((sum, day) => sum + day.count, 0)}</span>
+                            <span>Ø/Tag: {Math.round(stats.registrationData.reduce((sum, day) => sum + day.count, 0) / stats.registrationData.length)}</span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Edit User Modal */}
                 {editingUser && (

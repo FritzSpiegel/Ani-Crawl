@@ -782,4 +782,133 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// Admin statistics endpoint
+router.get('/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    // Get user statistics
+    const totalUsers = await User.countDocuments();
+    const verifiedUsers = await User.countDocuments({ verified: true });
+    const adminUsers = await User.countDocuments({ isAdmin: true });
+    const recentUsers = await User.countDocuments({ 
+      createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Last 7 days
+    });
+
+    // Get watchlist statistics
+    const totalWatchlistItems = await WatchlistItem.countDocuments();
+    const uniqueWatchlistUsers = await WatchlistItem.distinct('userEmail').then(emails => emails.length);
+    
+    // Get watchlist items per user for better statistics
+    const watchlistStats = await WatchlistItem.aggregate([
+      { $group: { _id: '$userEmail', count: { $sum: 1 } } },
+      { $group: { 
+          _id: null, 
+          totalItems: { $sum: '$count' },
+          uniqueUsers: { $sum: 1 },
+          averagePerUser: { $avg: '$count' },
+          maxPerUser: { $max: '$count' },
+          minPerUser: { $min: '$count' }
+        }
+      }
+    ]);
+    
+    const watchlistData = watchlistStats[0] || { totalItems: 0, uniqueUsers: 0, averagePerUser: 0, maxPerUser: 0, minPerUser: 0 };
+
+    // Get anime statistics
+    const totalAnime = await AnimeModel.countDocuments();
+    const recentAnime = await AnimeModel.countDocuments({ 
+      lastCrawledAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // Last 24 hours
+    });
+
+    // Get user registration over time (last 30 days)
+    const registrationData = [];
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+      
+      const count = await User.countDocuments({
+        createdAt: { $gte: startOfDay, $lt: endOfDay }
+      });
+      
+      registrationData.push({
+        date: startOfDay.toISOString().split('T')[0],
+        count
+      });
+    }
+
+    // Get most popular anime (by watchlist entries)
+    const popularAnime = await WatchlistItem.aggregate([
+      { $group: { _id: '$animeSlug', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+      {
+        $lookup: {
+          from: 'animes',
+          localField: '_id',
+          foreignField: 'slug',
+          as: 'anime'
+        }
+      },
+      { $unwind: '$anime' },
+      {
+        $project: {
+          slug: '$_id',
+          title: '$anime.canonicalTitle',
+          watchlistCount: '$count'
+        }
+      }
+    ]);
+
+    // Get watchlist distribution (how many users have how many items)
+    const watchlistDistribution = await WatchlistItem.aggregate([
+      { $group: { _id: '$userEmail', count: { $sum: 1 } } },
+      { $group: { _id: '$count', users: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Get user activity (recent logins)
+    const recentActivity = await User.find({}, { 
+      firstName: 1, 
+      lastName: 1, 
+      email: 1, 
+      createdAt: 1 
+    })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean();
+
+    res.json({
+      success: true,
+      stats: {
+        users: {
+          total: totalUsers,
+          verified: verifiedUsers,
+          admins: adminUsers,
+          recent: recentUsers,
+          verificationRate: totalUsers > 0 ? Math.round((verifiedUsers / totalUsers) * 100) : 0
+        },
+        watchlist: {
+          totalItems: watchlistData.totalItems,
+          uniqueUsers: watchlistData.uniqueUsers,
+          averagePerUser: Math.round(watchlistData.averagePerUser * 10) / 10, // Rounded to 1 decimal
+          maxPerUser: watchlistData.maxPerUser,
+          minPerUser: watchlistData.minPerUser
+        },
+        anime: {
+          total: totalAnime,
+          recentlyCrawled: recentAnime
+        },
+        registrationData,
+        popularAnime,
+        watchlistDistribution,
+        recentActivity
+      }
+    });
+
+  } catch (error) {
+    console.error('Admin stats error:', error);
+    res.status(500).json({ message: 'Failed to fetch statistics' });
+  }
+});
+
 export { router as authRouter };
