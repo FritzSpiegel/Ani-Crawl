@@ -3,12 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import "../styles/Auth.css";
 import { useAuth } from "../context/AuthContext";
+import PasswordResetModal from "../components/PasswordResetModal";
 
 export default function Login() {
     const nav = useNavigate();
     const { login } = useAuth();
     const [form, setForm] = useState({ email: "", password: "" });
     const [err, setErr] = useState("");
+    const [showPasswordReset, setShowPasswordReset] = useState(false);
 
     async function onSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -43,9 +45,30 @@ export default function Login() {
                             <button className="button button--primary" type="submit">Anmelden</button>
                             <Link to="/register" className="button">Registrieren</Link>
                         </div>
+                        <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                            <button 
+                                type="button"
+                                onClick={() => setShowPasswordReset(true)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#007bff',
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline',
+                                    fontSize: '14px'
+                                }}
+                            >
+                                Passwort vergessen?
+                            </button>
+                        </div>
                     </form>
                 </div>
             </main>
+            
+            <PasswordResetModal
+                isOpen={showPasswordReset}
+                onClose={() => setShowPasswordReset(false)}
+            />
         </div>
     );
 }

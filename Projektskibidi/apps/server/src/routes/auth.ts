@@ -560,4 +560,226 @@ router.post('/admin/seed-users', requireAdmin, async (req, res) => {
   }
 });
 
+// Delete user account (user can only delete their own account)
+router.delete('/delete-account', async (req, res) => {
+  try {
+    const { email, password, confirmation } = req.body;
+    
+    // Validate required fields
+    if (!email || !password || !confirmation) {
+      return res.status(400).json({
+        message: 'Email, password, and confirmation are required'
+      });
+    }
+    
+    // Validate confirmation
+    if (confirmation !== 'DELETE') {
+      return res.status(400).json({
+        message: 'Confirmation must be exactly "DELETE"'
+      });
+    }
+    
+    const emailNorm = String(email).trim().toLowerCase();
+    
+    // Find user
+    const emailRegex = new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i');
+    const user = await User.findOne({ email: emailRegex });
+    
+    if (!user) {
+      return res.status(404).json({
+        message: 'User account not found'
+      });
+    }
+    
+    // Verify password before deletion
+    const isBcrypt = typeof user.passHash === 'string' && /^\$2[aby]\$/.test(user.passHash);
+    let isValid = false;
+    
+    if (isBcrypt) {
+      try {
+        isValid = await bcrypt.compare(password, user.passHash);
+      } catch (e) {
+        isValid = false;
+      }
+    } else {
+      isValid = String(password) === String(user.passHash);
+    }
+    
+    if (!isValid) {
+      return res.status(401).json({
+        message: 'Invalid password provided'
+      });
+    }
+    
+    // Delete user's watchlist items
+    await WatchlistItem.deleteMany({ userEmail: emailNorm });
+    
+    // Delete user account
+    await User.findByIdAndDelete(user._id);
+    
+    console.log(`✅ User account deleted: ${emailNorm}`);
+    
+    res.json({
+      success: true,
+      message: 'Account deleted successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    res.status(500).json({
+      message: 'Failed to delete account'
+    });
+  }
+});
+
+// Request password reset
+router.post('/request-password-reset', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        message: 'Email is required'
+      });
+    }
+    
+    const emailNorm = String(email).trim().toLowerCase();
+    
+    // Find user
+    const emailRegex = new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i');
+    const user = await User.findOne({ email: emailRegex });
+    
+    if (!user) {
+      // Don't reveal if user exists or not for security
+      return res.json({
+        success: true,
+        message: 'If an account with this email exists, a password reset code has been sent.'
+      });
+    }
+    
+    // Generate reset code
+    const resetCode = nanoid();
+    const resetExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    
+    // Save reset code to user
+    await User.findByIdAndUpdate(user._id, {
+      resetCode,
+      resetExpiry
+    });
+    
+    // Send reset email
+    const transporter = createTransporter();
+    if (transporter) {
+      await transporter.sendMail({
+        from: process.env.SMTP_USER || 'noreply@anicrawl.com',
+        to: emailNorm,
+        subject: 'AniCrawl - Passwort zurücksetzen',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">Passwort zurücksetzen</h2>
+            <p>Hallo ${user.firstName},</p>
+            <p>Sie haben eine Anfrage zum Zurücksetzen Ihres Passworts erhalten.</p>
+            <p>Ihr Reset-Code lautet:</p>
+            <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 2px; color: #333; border-radius: 5px; margin: 20px 0;">
+              ${resetCode}
+            </div>
+            <p>Dieser Code ist 15 Minuten gültig.</p>
+            <p>Falls Sie diese Anfrage nicht gestellt haben, können Sie diese E-Mail ignorieren.</p>
+            <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+            <p style="color: #666; font-size: 12px;">AniCrawl Team</p>
+          </div>
+        `
+      });
+    }
+    
+    console.log(`✅ Password reset code sent to: ${emailNorm}`);
+    
+    res.json({
+      success: true,
+      message: 'If an account with this email exists, a password reset code has been sent.'
+    });
+    
+  } catch (error) {
+    console.error('Error requesting password reset:', error);
+    res.status(500).json({
+      message: 'Failed to send password reset code'
+    });
+  }
+});
+
+// Reset password with code
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({
+        message: 'Email, code, and new password are required'
+      });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+    
+    const emailNorm = String(email).trim().toLowerCase();
+    
+    // Find user
+    const emailRegex = new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i');
+    const user = await User.findOne({ email: emailRegex });
+    
+    if (!user) {
+      return res.status(404).json({
+        message: 'User account not found'
+      });
+    }
+    
+    // Check if reset code exists and is valid
+    if (!user.resetCode || !user.resetExpiry) {
+      return res.status(400).json({
+        message: 'No valid reset code found'
+      });
+    }
+    
+    // Check if code matches
+    if (user.resetCode !== code) {
+      return res.status(400).json({
+        message: 'Invalid reset code'
+      });
+    }
+    
+    // Check if code is expired
+    if (new Date() > user.resetExpiry) {
+      return res.status(400).json({
+        message: 'Reset code has expired'
+      });
+    }
+    
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    
+    // Update password and clear reset code
+    await User.findByIdAndUpdate(user._id, {
+      passHash: hashedPassword,
+      resetCode: null,
+      resetExpiry: null
+    });
+    
+    console.log(`✅ Password reset successful for: ${emailNorm}`);
+    
+    res.json({
+      success: true,
+      message: 'Password has been reset successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(500).json({
+      message: 'Failed to reset password'
+    });
+  }
+});
+
 export { router as authRouter };

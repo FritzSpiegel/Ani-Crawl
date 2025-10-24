@@ -9,6 +9,8 @@ export interface IUser extends Document {
   isAdmin: boolean;
   verifyToken?: string;
   verifyExpires?: number;
+  resetCode?: string;
+  resetExpiry?: Date;
   createdAt: Date;
 }
 
@@ -21,6 +23,8 @@ const userSchema = new Schema<IUser>({
   isAdmin: { type: Boolean, default: false },
   verifyToken: { type: String },
   verifyExpires: { type: Number },
+  resetCode: { type: String },
+  resetExpiry: { type: Date },
   createdAt: { type: Date, default: Date.now }
 });
 

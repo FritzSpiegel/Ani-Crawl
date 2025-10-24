@@ -1,5 +1,5 @@
 import Header from "../components/Header";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { wlAdd, wlContains, wlRemove } from "../services/auth";
 import { useAuth } from "../context/AuthContext";
@@ -16,6 +16,7 @@ interface AnimeData {
 
 export default function Details() {
     const { id: slug } = useParams<{ id: string }>();
+    const navigate = useNavigate();
     const { user } = useAuth();
     const [data, setData] = useState<AnimeData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -107,7 +108,12 @@ export default function Details() {
                             <div className="tag-list">{genres.map((t) => <span key={t} className="tag-chip">{t}</span>)}</div>
                             <div className="cta-row">
                                 <button className="btn btn--primary" onClick={toggleWatchlist} disabled={!user || busy}>{inList ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}</button>
-                                <button className="btn">Watch Now</button>
+                                <button 
+                                    className="btn" 
+                                    onClick={() => navigate(`/watch/${slug}/1`)}
+                                >
+                                    Watch Now
+                                </button>
                             </div>
                         </div>
                     </div>

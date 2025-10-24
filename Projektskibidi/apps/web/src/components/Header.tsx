@@ -25,7 +25,7 @@ export default function Header() {
                         </>
                     ) : (
                         <>
-                            <div className="nav-link" style={{ background: '#1b2437', cursor: 'default' }}>Hallo {user.firstName}</div>
+                            <Link to="/settings" className="nav-link">Einstellungen</Link>
                             <button className="btn" onClick={logout}>Logout</button>
                         </>
                     )}

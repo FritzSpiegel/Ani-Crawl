@@ -4,10 +4,12 @@ import { AnimeModel } from "../models/Anime";
 import { normalizeTitle } from "../utils/normalize";
 import { loadSearchHtml, loadDetailHtml } from "../crawler/fetch";
 import { parseSearch, parseDetail, deriveSlugAndSourceUrl } from "../crawler/parser";
+// import { VideoCrawler } from "../crawler/video";
 import { AnimeSchema } from "@aniworld/shared";
 import { authRouter } from "./auth";
 
 const router = Router();
+// const videoCrawler = new VideoCrawler();
 
 const SearchQuery = z.object({ q: z.string().min(1), fetchLive: z.coerce.boolean().optional() });
 const SuggestionsQuery = z.object({ q: z.string().min(1) });
@@ -240,7 +242,12 @@ router.get("/search", async (req, res) => {
     const searchHtml = await loadSearchHtml(q, true); // Always use live fetch for searches
     const { topTitle, topHref } = parseSearch(searchHtml);
     if (!topTitle || !topHref) {
-      return res.status(404).json({ error: { code: "NOT_FOUND", message: "No results in search" } });
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Keine Ergebnisse gefunden" } });
+    }
+    
+    // Additional validation: Check if the result is actually from AniWorld
+    if (!topHref.includes('aniworld.to')) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Keine Ergebnisse gefunden" } });
     }
     const detailHtml = await loadDetailHtml(topHref, true); // Always use live fetch for details
     const partial = parseDetail(detailHtml);
@@ -356,7 +363,7 @@ router.get("/anime/:slug", async (req, res) => {
         const searchHtml = await loadSearchHtml(searchQuery, true);
         const { topTitle, topHref } = parseSearch(searchHtml);
 
-        if (topTitle && topHref) {
+        if (topTitle && topHref && topHref.includes('aniworld.to')) {
           const detailHtml = await loadDetailHtml(topHref, true);
           const partial = parseDetail(detailHtml);
           const { slug: newSlug, sourceUrl } = deriveSlugAndSourceUrl(topTitle, topHref);
@@ -656,6 +663,52 @@ router.post("/seed/popular", async (req, res) => {
   await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
   return res.json({ ok: true, requested: picked.length, seeded, errorsCount: errors.length, errors });
+});
+
+// Video streaming routes
+router.get("/video/:slug/:episode", async (req, res) => {
+  const { slug, episode } = req.params;
+  const episodeNum = parseInt(episode);
+
+  try {
+    console.log(`🔍 Loading video for ${slug} episode ${episodeNum}...`);
+    
+    // For now, always use mock videos
+    console.log(`⚠️ Using mock video for demo purposes`);
+    
+    const mockVideoUrls = [
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4"
+      ];
+      
+    const videoIndex = (episodeNum - 1) % mockVideoUrls.length;
+    const videoUrl = mockVideoUrls[videoIndex];
+    
+    return res.json({
+      videoUrl,
+      episode: episodeNum,
+      title: `Episode ${episodeNum}`,
+      animeSlug: slug,
+      quality: '720p',
+      type: 'mp4',
+      sources: [{ url: videoUrl, quality: '720p', type: 'mp4' }],
+      externalUrl: `https://aniworld.to/anime/stream/${slug}/episode/${episodeNum}` // Link to real episode
+    });
+    
+  } catch (err: any) {
+    console.error(`❌ Error fetching video for ${slug} episode ${episode}:`, err);
+    return res.status(500).json({ error: { code: "VIDEO_FETCH_FAILED", message: err?.message || "Failed to fetch video" } });
+  }
 });
 
 // Mount auth routes
