@@ -6,7 +6,7 @@ import { customAlphabet } from "nanoid";
 import nodemailer from "nodemailer";
 import { User } from "../models/User";
 import { WatchlistItem } from "../models/Watchlist";
-import { AnimeModel } from "../models/Anime";
+import { listAnime } from "../services/strapi";
 import { normalizeTitle } from "../utils/normalize";
 import { loadSearchHtml, loadDetailHtml } from "../crawler/fetch";
 import { parseSearch, parseDetail, deriveSlugAndSourceUrl } from "../crawler/parser";
@@ -330,11 +330,13 @@ router.get('/status', async (req, res) => {
 router.get('/watchlist', authenticateToken, async (req: any, res) => {
   try {
     const items = await WatchlistItem.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    res.json({ items: items.map(item => ({
-      id: item.itemId,
-      title: item.title,
-      image: item.image
-    })) });
+    res.json({
+      items: items.map(item => ({
+        id: item.itemId,
+        title: item.title,
+        image: item.image
+      }))
+    });
   } catch (error) {
     console.error('Watchlist fetch error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -363,7 +365,7 @@ router.post('/watchlist/add', authenticateToken, async (req: any, res) => {
     // Use upsert to avoid duplicates
     const item = await WatchlistItem.findOneAndUpdate(
       { userId: req.user._id, itemId: id },
-      { 
+      {
         userId: req.user._id,
         itemId: id,
         title,
@@ -404,7 +406,7 @@ const requireAdmin = async (req: any, res: any, next: any) => {
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
     }
-    
+
     if (user.isAdmin) {
       req.user = user;
       next();
@@ -493,7 +495,7 @@ router.post('/admin/users/update', requireAdmin, async (req, res) => {
 
     await user.save();
 
-    res.json({ 
+    res.json({
       message: 'User updated successfully',
       user: {
         id: user._id,
@@ -564,37 +566,37 @@ router.post('/admin/seed-users', requireAdmin, async (req, res) => {
 router.delete('/delete-account', async (req, res) => {
   try {
     const { email, password, confirmation } = req.body;
-    
+
     // Validate required fields
     if (!email || !password || !confirmation) {
       return res.status(400).json({
         message: 'Email, password, and confirmation are required'
       });
     }
-    
+
     // Validate confirmation
     if (confirmation !== 'DELETE') {
       return res.status(400).json({
         message: 'Confirmation must be exactly "DELETE"'
       });
     }
-    
+
     const emailNorm = String(email).trim().toLowerCase();
-    
+
     // Find user
     const emailRegex = new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i');
     const user = await User.findOne({ email: emailRegex });
-    
+
     if (!user) {
       return res.status(404).json({
         message: 'User account not found'
       });
     }
-    
+
     // Verify password before deletion
     const isBcrypt = typeof user.passHash === 'string' && /^\$2[aby]\$/.test(user.passHash);
     let isValid = false;
-    
+
     if (isBcrypt) {
       try {
         isValid = await bcrypt.compare(password, user.passHash);
@@ -604,26 +606,26 @@ router.delete('/delete-account', async (req, res) => {
     } else {
       isValid = String(password) === String(user.passHash);
     }
-    
+
     if (!isValid) {
       return res.status(401).json({
         message: 'Invalid password provided'
       });
     }
-    
+
     // Delete user's watchlist items
     await WatchlistItem.deleteMany({ userEmail: emailNorm });
-    
+
     // Delete user account
     await User.findByIdAndDelete(user._id);
-    
+
     console.log(`✅ User account deleted: ${emailNorm}`);
-    
+
     res.json({
       success: true,
       message: 'Account deleted successfully'
     });
-    
+
   } catch (error) {
     console.error('Error deleting account:', error);
     res.status(500).json({
@@ -636,19 +638,19 @@ router.delete('/delete-account', async (req, res) => {
 router.post('/request-password-reset', async (req, res) => {
   try {
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({
         message: 'Email is required'
       });
     }
-    
+
     const emailNorm = String(email).trim().toLowerCase();
-    
+
     // Find user
     const emailRegex = new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i');
     const user = await User.findOne({ email: emailRegex });
-    
+
     if (!user) {
       // Don't reveal if user exists or not for security
       return res.json({
@@ -656,17 +658,17 @@ router.post('/request-password-reset', async (req, res) => {
         message: 'If an account with this email exists, a password reset code has been sent.'
       });
     }
-    
+
     // Generate reset code
     const resetCode = nanoid();
     const resetExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-    
+
     // Save reset code to user
     await User.findByIdAndUpdate(user._id, {
       resetCode,
       resetExpiry
     });
-    
+
     // Send reset email
     const transporter = createTransporter();
     if (transporter) {
@@ -691,14 +693,14 @@ router.post('/request-password-reset', async (req, res) => {
         `
       });
     }
-    
+
     console.log(`✅ Password reset code sent to: ${emailNorm}`);
-    
+
     res.json({
       success: true,
       message: 'If an account with this email exists, a password reset code has been sent.'
     });
-    
+
   } catch (error) {
     console.error('Error requesting password reset:', error);
     res.status(500).json({
@@ -711,69 +713,69 @@ router.post('/request-password-reset', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
   try {
     const { email, code, newPassword } = req.body;
-    
+
     if (!email || !code || !newPassword) {
       return res.status(400).json({
         message: 'Email, code, and new password are required'
       });
     }
-    
+
     if (newPassword.length < 6) {
       return res.status(400).json({
         message: 'Password must be at least 6 characters long'
       });
     }
-    
+
     const emailNorm = String(email).trim().toLowerCase();
-    
+
     // Find user
     const emailRegex = new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i');
     const user = await User.findOne({ email: emailRegex });
-    
+
     if (!user) {
       return res.status(404).json({
         message: 'User account not found'
       });
     }
-    
+
     // Check if reset code exists and is valid
     if (!user.resetCode || !user.resetExpiry) {
       return res.status(400).json({
         message: 'No valid reset code found'
       });
     }
-    
+
     // Check if code matches
     if (user.resetCode !== code) {
       return res.status(400).json({
         message: 'Invalid reset code'
       });
     }
-    
+
     // Check if code is expired
     if (new Date() > user.resetExpiry) {
       return res.status(400).json({
         message: 'Reset code has expired'
       });
     }
-    
+
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 12);
-    
+
     // Update password and clear reset code
     await User.findByIdAndUpdate(user._id, {
       passHash: hashedPassword,
       resetCode: null,
       resetExpiry: null
     });
-    
+
     console.log(`✅ Password reset successful for: ${emailNorm}`);
-    
+
     res.json({
       success: true,
       message: 'Password has been reset successfully'
     });
-    
+
   } catch (error) {
     console.error('Error resetting password:', error);
     res.status(500).json({
@@ -789,19 +791,20 @@ router.get('/admin/stats', requireAdmin, async (req, res) => {
     const totalUsers = await User.countDocuments();
     const verifiedUsers = await User.countDocuments({ verified: true });
     const adminUsers = await User.countDocuments({ isAdmin: true });
-    const recentUsers = await User.countDocuments({ 
+    const recentUsers = await User.countDocuments({
       createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Last 7 days
     });
 
     // Get watchlist statistics
     const totalWatchlistItems = await WatchlistItem.countDocuments();
     const uniqueWatchlistUsers = await WatchlistItem.distinct('userEmail').then(emails => emails.length);
-    
+
     // Get watchlist items per user for better statistics
     const watchlistStats = await WatchlistItem.aggregate([
       { $group: { _id: '$userEmail', count: { $sum: 1 } } },
-      { $group: { 
-          _id: null, 
+      {
+        $group: {
+          _id: null,
           totalItems: { $sum: '$count' },
           uniqueUsers: { $sum: 1 },
           averagePerUser: { $avg: '$count' },
@@ -810,14 +813,18 @@ router.get('/admin/stats', requireAdmin, async (req, res) => {
         }
       }
     ]);
-    
+
     const watchlistData = watchlistStats[0] || { totalItems: 0, uniqueUsers: 0, averagePerUser: 0, maxPerUser: 0, minPerUser: 0 };
 
-    // Get anime statistics
-    const totalAnime = await AnimeModel.countDocuments();
-    const recentAnime = await AnimeModel.countDocuments({ 
-      lastCrawledAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // Last 24 hours
-    });
+    // Get anime statistics from Strapi
+    let totalAnime = 0;
+    let recentAnime = 0;
+    try {
+      const { meta } = await listAnime(1, 1);
+      totalAnime = meta?.pagination?.total ?? 0;
+      // Strapi doesn't support date-range count in one call; approximate via recent page
+      recentAnime = 0; // filled from Strapi if needed
+    } catch { /* Strapi may be down */ }
 
     // Get user registration over time (last 30 days)
     const registrationData = [];
@@ -825,11 +832,11 @@ router.get('/admin/stats', requireAdmin, async (req, res) => {
       const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
       const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
-      
+
       const count = await User.countDocuments({
         createdAt: { $gte: startOfDay, $lt: endOfDay }
       });
-      
+
       registrationData.push({
         date: startOfDay.toISOString().split('T')[0],
         count
@@ -837,27 +844,16 @@ router.get('/admin/stats', requireAdmin, async (req, res) => {
     }
 
     // Get most popular anime (by watchlist entries)
-    const popularAnime = await WatchlistItem.aggregate([
-      { $group: { _id: '$animeSlug', count: { $sum: 1 } } },
+    const popularAnimeAgg = await WatchlistItem.aggregate([
+      { $group: { _id: '$itemId', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 10 },
-      {
-        $lookup: {
-          from: 'animes',
-          localField: '_id',
-          foreignField: 'slug',
-          as: 'anime'
-        }
-      },
-      { $unwind: '$anime' },
-      {
-        $project: {
-          slug: '$_id',
-          title: '$anime.canonicalTitle',
-          watchlistCount: '$count'
-        }
-      }
     ]);
+    const popularAnime = popularAnimeAgg.map((p: any) => ({
+      slug: p._id,
+      title: p._id, // slug doubles as fallback title
+      watchlistCount: p.count,
+    }));
 
     // Get watchlist distribution (how many users have how many items)
     const watchlistDistribution = await WatchlistItem.aggregate([
@@ -867,15 +863,15 @@ router.get('/admin/stats', requireAdmin, async (req, res) => {
     ]);
 
     // Get user activity (recent logins)
-    const recentActivity = await User.find({}, { 
-      firstName: 1, 
-      lastName: 1, 
-      email: 1, 
-      createdAt: 1 
+    const recentActivity = await User.find({}, {
+      firstName: 1,
+      lastName: 1,
+      email: 1,
+      createdAt: 1
     })
-    .sort({ createdAt: -1 })
-    .limit(5)
-    .lean();
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
 
     res.json({
       success: true,

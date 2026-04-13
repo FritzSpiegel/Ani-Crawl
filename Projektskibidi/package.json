@@ -3,11 +3,15 @@
   "private": true,
   "packageManager": "pnpm@9.0.0",
   "scripts": {
-    "dev": "pnpm -r --parallel --filter ./packages/shared --filter ./apps/* run dev",
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "lint": "pnpm -r lint",
-    "format": "pnpm -r format"
+    "dev": "pnpm -r --parallel --filter ./packages/shared --filter ./apps/server --filter ./apps/web run dev",
+    "dev:headless": "pnpm -r --parallel --filter ./apps/cms --filter ./packages/shared --filter ./apps/server --filter ./apps/web run dev",
+    "dev:server": "pnpm --filter @aniworld/server dev",
+    "dev:web": "pnpm --filter @aniworld/web dev",
+    "dev:cms": "pnpm --filter cms dev",
+    "build": "pnpm -r --filter ./packages/shared --filter ./apps/server --filter ./apps/web build",
+    "build:headless": "pnpm -r --filter ./apps/cms --filter ./packages/shared --filter ./apps/server --filter ./apps/web build",
+    "test": "pnpm -r --filter ./packages/shared --filter ./apps/server --filter ./apps/web test",
+    "lint": "pnpm -r --filter ./packages/shared --filter ./apps/server --filter ./apps/web lint",
+    "format": "pnpm -r --filter ./packages/shared --filter ./apps/server --filter ./apps/web format"
   }
 }
-

@@ -1,0 +1,78 @@
+{
+    "kind": "collectionType",
+    "collectionName": "animes",
+    "info": {
+        "singularName": "anime",
+        "pluralName": "animes",
+        "displayName": "Anime",
+        "description": "Anime series and movies crawled from AniWorld"
+    },
+    "options": {
+        "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+        "canonicalTitle": {
+            "type": "string",
+            "required": true
+        },
+        "slug": {
+            "type": "uid",
+            "targetField": "canonicalTitle",
+            "required": true
+        },
+        "altTitles": {
+            "type": "json",
+            "required": false
+        },
+        "normalizedTitle": {
+            "type": "string"
+        },
+        "description": {
+            "type": "richtext"
+        },
+        "cover": {
+            "type": "media",
+            "multiple": false,
+            "allowedTypes": [
+                "images"
+            ]
+        },
+        "imageUrl": {
+            "type": "string"
+        },
+        "yearStart": {
+            "type": "integer"
+        },
+        "yearEnd": {
+            "type": "integer"
+        },
+        "sourceUrl": {
+            "type": "string"
+        },
+        "lastCrawledAt": {
+            "type": "datetime"
+        },
+        "genres": {
+            "type": "relation",
+            "relation": "manyToMany",
+            "target": "api::genre.genre",
+            "inversedBy": "animes"
+        },
+        "episodes": {
+            "type": "component",
+            "repeatable": true,
+            "component": "anime.episode"
+        },
+        "cast": {
+            "type": "json"
+        },
+        "producers": {
+            "type": "json"
+        },
+        "isFeatured": {
+            "type": "boolean",
+            "default": false
+        }
+    }
+}

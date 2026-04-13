@@ -1,0 +1,25 @@
+{
+    "kind": "singleType",
+    "collectionName": "recommendations",
+    "info": {
+        "singularName": "recommendation",
+        "pluralName": "recommendations",
+        "displayName": "Recommendation",
+        "description": "Featured anime recommendations shown on the homepage"
+    },
+    "options": {
+        "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+        "title": {
+            "type": "string",
+            "default": "Schwärzlers Empfehlungen"
+        },
+        "animes": {
+            "type": "relation",
+            "relation": "oneToMany",
+            "target": "api::anime.anime"
+        }
+    }
+}

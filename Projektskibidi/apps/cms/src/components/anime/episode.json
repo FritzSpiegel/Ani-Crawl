@@ -1,0 +1,20 @@
+{
+    "collectionName": "components_anime_episodes",
+    "info": {
+        "displayName": "Episode",
+        "icon": "play",
+        "description": "A single anime episode with number, title, and available languages"
+    },
+    "attributes": {
+        "number": {
+            "type": "integer",
+            "required": true
+        },
+        "title": {
+            "type": "string"
+        },
+        "languages": {
+            "type": "json"
+        }
+    }
+}

@@ -1,0 +1,767 @@
+openapi: 3.1.0
+info:
+  title: AniCrawl Headless CMS API
+  description: |
+    A complete Headless CMS API for managing anime content.
+    
+    ## Authentication
+    
+    The API supports two authentication methods:
+    
+    ### API Key (Recommended for programmatic access)
+    Include your API key in the `X-API-Key` header:
+    ```
+    X-API-Key: ak_your_api_key_here
+    ```
+    
+    ### Session Cookie (For browser-based access)
+    Login via `/api/auth/login` to receive a session cookie.
+    
+    ## Rate Limiting
+    
+    API keys have configurable rate limits (default: 1000 requests/hour).
+    When exceeded, the API returns HTTP 429.
+    
+    ## Webhooks
+    
+    Subscribe to content events by creating webhooks. Supported events:
+    - `anime.created`, `anime.updated`, `anime.deleted`
+    - `user.created`, `user.updated`, `user.deleted`
+    
+  version: 1.0.0
+  contact:
+    name: AniCrawl Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+
+tags:
+  - name: Content
+    description: Anime content CRUD operations
+  - name: Media
+    description: Media file management
+  - name: API Keys
+    description: API key management
+  - name: Webhooks
+    description: Webhook subscriptions
+  - name: Users
+    description: User management (Admin)
+  - name: Statistics
+    description: CMS analytics
+  - name: Schema
+    description: Content type introspection
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+      description: Session cookie from login
+
+  schemas:
+    Anime:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier
+        slug:
+          type: string
+          description: URL-friendly identifier
+        canonicalTitle:
+          type: string
+          description: Primary title
+        altTitles:
+          type: array
+          items:
+            type: string
+          description: Alternative titles
+        description:
+          type: string
+          description: Synopsis
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Cover image URL
+        yearStart:
+          type: integer
+          nullable: true
+          description: Start year
+        yearEnd:
+          type: integer
+          nullable: true
+          description: End year
+        genres:
+          type: array
+          items:
+            type: string
+        cast:
+          type: array
+          items:
+            type: string
+        producers:
+          type: array
+          items:
+            type: string
+        episodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Episode'
+        sourceUrl:
+          type: string
+        lastCrawledAt:
+          type: string
+          format: date-time
+
+    Episode:
+      type: object
+      properties:
+        number:
+          type: integer
+        title:
+          type: string
+        languages:
+          type: array
+          items:
+            type: string
+
+    CreateAnime:
+      type: object
+      required:
+        - canonicalTitle
+      properties:
+        canonicalTitle:
+          type: string
+        altTitles:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+        yearStart:
+          type: integer
+        yearEnd:
+          type: integer
+        genres:
+          type: array
+          items:
+            type: string
+        cast:
+          type: array
+          items:
+            type: string
+        producers:
+          type: array
+          items:
+            type: string
+        episodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Episode'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        verified:
+          type: boolean
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        keyPreview:
+          type: string
+          description: Partial key for identification
+        permissions:
+          type: array
+          items:
+            type: string
+            enum: [read, write, delete, admin]
+        rateLimit:
+          type: integer
+        requestCount:
+          type: integer
+        lastUsed:
+          type: string
+          format: date-time
+        isActive:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+        lastTriggered:
+          type: string
+          format: date-time
+        failureCount:
+          type: integer
+
+    Media:
+      type: object
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        originalName:
+          type: string
+        mimeType:
+          type: string
+        size:
+          type: integer
+        url:
+          type: string
+          format: uri
+        alt:
+          type: string
+        caption:
+          type: string
+        folder:
+          type: string
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+        hasNextPage:
+          type: boolean
+        hasPrevPage:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+
+security:
+  - ApiKeyAuth: []
+  - CookieAuth: []
+
+paths:
+  /cms/content/anime:
+    get:
+      tags: [Content]
+      summary: List anime
+      description: Get paginated list of anime with filtering and sorting
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: -createdAt
+          description: Field to sort by (prefix with - for descending)
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search query
+        - name: genre
+          in: query
+          schema:
+            type: string
+          description: Filter by genre
+        - name: yearStart
+          in: query
+          schema:
+            type: integer
+          description: Filter by minimum start year
+        - name: fields
+          in: query
+          schema:
+            type: string
+          description: Comma-separated list of fields to return
+      responses:
+        200:
+          description: List of anime
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Anime'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    post:
+      tags: [Content]
+      summary: Create anime
+      description: Create a new anime entry
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnime'
+      responses:
+        201:
+          description: Anime created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Anime'
+        400:
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        401:
+          description: Unauthorized
+        403:
+          description: Insufficient permissions
+
+  /cms/content/anime/{id}:
+    get:
+      tags: [Content]
+      summary: Get anime
+      description: Get a single anime by ID or slug
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Anime ID or slug
+      responses:
+        200:
+          description: Anime details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Anime'
+        404:
+          description: Not found
+    put:
+      tags: [Content]
+      summary: Replace anime
+      description: Full replacement of anime data
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnime'
+      responses:
+        200:
+          description: Anime updated
+        404:
+          description: Not found
+    patch:
+      tags: [Content]
+      summary: Partial update anime
+      description: Update specific fields of an anime
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnime'
+      responses:
+        200:
+          description: Anime updated
+        404:
+          description: Not found
+    delete:
+      tags: [Content]
+      summary: Delete anime
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: Deleted
+        404:
+          description: Not found
+
+  /cms/api-keys:
+    get:
+      tags: [API Keys]
+      summary: List API keys
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        200:
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+    post:
+      tags: [API Keys]
+      summary: Create API key
+      security:
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                    enum: [read, write, delete, admin]
+                rateLimit:
+                  type: integer
+                  default: 1000
+                expiresAt:
+                  type: string
+                  format: date-time
+      responses:
+        201:
+          description: API key created (includes full key)
+
+  /cms/api-keys/{id}:
+    delete:
+      tags: [API Keys]
+      summary: Revoke API key
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: Deleted
+
+  /cms/webhooks:
+    get:
+      tags: [Webhooks]
+      summary: List webhooks
+      security:
+        - ApiKeyAuth: []
+      responses:
+        200:
+          description: List of webhooks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Webhook'
+    post:
+      tags: [Webhooks]
+      summary: Create webhook
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+                - events
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - anime.created
+                      - anime.updated
+                      - anime.deleted
+                      - user.created
+                      - user.updated
+                      - user.deleted
+      responses:
+        201:
+          description: Webhook created
+
+  /cms/webhooks/{id}:
+    delete:
+      tags: [Webhooks]
+      summary: Delete webhook
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: Deleted
+
+  /cms/users:
+    get:
+      tags: [Users]
+      summary: List users (Admin)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        200:
+          description: List of users
+        403:
+          description: Admin required
+
+  /cms/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user (Admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: User details
+    patch:
+      tags: [Users]
+      summary: Update user (Admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: User updated
+    delete:
+      tags: [Users]
+      summary: Delete user (Admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: Deleted
+
+  /cms/media:
+    get:
+      tags: [Media]
+      summary: List media files
+      parameters:
+        - name: folder
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [image, video, audio, document]
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of media files
+    post:
+      tags: [Media]
+      summary: Upload file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                alt:
+                  type: string
+                caption:
+                  type: string
+                folder:
+                  type: string
+      responses:
+        201:
+          description: File uploaded
+
+  /cms/media/{id}:
+    get:
+      tags: [Media]
+      summary: Get media file info
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Media details
+    patch:
+      tags: [Media]
+      summary: Update media metadata
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Media updated
+    delete:
+      tags: [Media]
+      summary: Delete media file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: Deleted
+
+  /cms/stats:
+    get:
+      tags: [Statistics]
+      summary: Get CMS statistics
+      security:
+        - ApiKeyAuth: []
+      responses:
+        200:
+          description: Statistics data
+        403:
+          description: Admin required
+
+  /cms/schema:
+    get:
+      tags: [Schema]
+      summary: Get content type schemas
+      description: Returns content type definitions for frontend form generation
+      responses:
+        200:
+          description: Schema definitions

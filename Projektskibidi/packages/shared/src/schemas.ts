@@ -6,6 +6,12 @@ export const EpisodeSchema = z.object({
   languages: z.array(z.string()).optional(),
 });
 
+export const GenreSchema = z.object({
+  id: z.number().int(),
+  name: z.string().min(1),
+  slug: z.string().min(1),
+});
+
 export const AnimeSchema = z.object({
   slug: z.string().min(1),
   canonicalTitle: z.string().min(1),
@@ -22,4 +28,19 @@ export const AnimeSchema = z.object({
   lastCrawledAt: z.string().datetime(),
 });
 
+export const StrapiAnimeSchema = AnimeSchema.omit({ genres: true }).extend({
+  id: z.number().int(),
+  genres: z.array(GenreSchema).default([]),
+  isFeatured: z.boolean().default(false),
+  normalizedTitle: z.string().default(""),
+});
+
+export const AnimeListItemSchema = z.object({
+  id: z.union([z.number(), z.string()]),
+  slug: z.string(),
+  title: z.string(),
+  img: z.string(),
+});
+
 export type AnimeDTOSchema = z.infer<typeof AnimeSchema>;
+export type StrapiAnimeDTOSchema = z.infer<typeof StrapiAnimeSchema>;

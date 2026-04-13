@@ -3,21 +3,33 @@ setlocal
 
 set "ROOT=%~dp0"
 set "WORKSPACE_DIR=%ROOT%Projektskibidi"
-set "CRAWLER_DIR=%ROOT%Projektskibidi\apps\server"
-set "CLIENT_DIR=%ROOT%AniCrawl - frontend\client"
+set "CMS_DIR=%WORKSPACE_DIR%\apps\cms"
+set "SERVER_DIR=%WORKSPACE_DIR%\apps\server"
+set "WEB_DIR=%WORKSPACE_DIR%\apps\web"
 
 echo Using ROOT: "%ROOT%"
 echo Workspace dir: "%WORKSPACE_DIR%"
-echo Crawler dir: "%CRAWLER_DIR%"
-echo Client dir : "%CLIENT_DIR%"
+echo CMS dir      : "%CMS_DIR%"
+echo Server dir   : "%SERVER_DIR%"
+echo Web dir      : "%WEB_DIR%"
 
-if not exist "%CRAWLER_DIR%" (
-  echo ERROR: Crawler directory not found.
+if not exist "%WORKSPACE_DIR%" (
+  echo ERROR: Monorepo directory not found.
   pause
   exit /b 1
 )
-if not exist "%CLIENT_DIR%" (
-  echo ERROR: Client directory not found.
+if not exist "%CMS_DIR%" (
+  echo ERROR: CMS directory not found.
+  pause
+  exit /b 1
+)
+if not exist "%SERVER_DIR%" (
+  echo ERROR: Server directory not found.
+  pause
+  exit /b 1
+)
+if not exist "%WEB_DIR%" (
+  echo ERROR: Web directory not found.
   pause
   exit /b 1
 )
@@ -36,30 +48,21 @@ if errorlevel 1 (
   exit /b 1
 )
 
-REM Install client dependencies
-echo Installing client dependencies...
-cd /d "%CLIENT_DIR%"
-npm install
-if errorlevel 1 (
-  echo ERROR: Failed to install npm dependencies
-  pause
-  exit /b 1
-)
-
-echo.
-echo Starting servers...
+echo Starting headless CMS stack...
 echo.
 
-REM ===== Start AniWorld crawler + auth/watchlist API (port 3001) =====
-REM Opens in a new window and sets required environment variables
-start "Crawler API" cmd /k "cd /d "%CRAWLER_DIR%" && echo Starting Crawler API... && set MONGO_URI=mongodb://localhost:27017/aniworld && set APP_BASE_URL=http://localhost:5173 && set JWT_SECRET=devsecret && set ADMIN_EMAIL=admin@mail && set ADMIN_PASSWORD=password && set ALLOW_LIVE_FETCH=true && set STATIC_SEARCH_HTML=.\fixtures\search.html && set STATIC_DETAIL_HTML=.\fixtures\detail.html && pnpm dev"
+REM ===== Start Strapi CMS (port 1337) =====
+start "AniCrawl CMS" cmd /k "cd /d "%WORKSPACE_DIR%" && echo Starting CMS on http://localhost:1337 ... && pnpm --filter cms dev"
 
-REM ===== Start React client (port 5173) =====
-start "Client" cmd /k "cd /d "%CLIENT_DIR%" && echo Starting Client... && npm run dev"
+REM ===== Start API server (port 3002) =====
+start "AniCrawl API" cmd /k "cd /d "%WORKSPACE_DIR%" && echo Starting API on http://localhost:3002 ... && set API_PORT=3002 && pnpm --filter @aniworld/server dev"
+
+REM ===== Start web app (port 5174) =====
+start "AniCrawl Web" cmd /k "cd /d "%WORKSPACE_DIR%" && echo Starting Web on http://localhost:5174 ... && pnpm --filter @aniworld/web dev"
 
 echo.
-echo Launched Crawler API (http://localhost:3001) and Client (http://localhost:5173) in separate windows.
-echo Ensure MongoDB is running locally (mongod) before using the app.
+echo Launched CMS (1337), API (3002), and Web (5174) in separate windows.
+echo Hinweis: Stelle sicher, dass MongoDB fuer den API-Teil laeuft und Strapi korrekt konfiguriert ist.
 echo.
 exit /b 0
 

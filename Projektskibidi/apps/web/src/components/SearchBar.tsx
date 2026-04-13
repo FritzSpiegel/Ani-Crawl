@@ -58,7 +58,7 @@ export default function SearchBar({ onSearchComplete }: SearchBarProps) {
         if (debounceRef.current) {
             clearTimeout(debounceRef.current);
         }
-        
+
         debounceRef.current = setTimeout(() => {
             fetchSuggestions(query);
         }, 300);
@@ -73,26 +73,26 @@ export default function SearchBar({ onSearchComplete }: SearchBarProps) {
     const runSearch = useCallback(async (searchQuery?: string) => {
         const q = (searchQuery || query).trim();
         if (!q || searching) return;
-        
+
         setSearching(true);
         setShowSuggestions(false);
         setSuggestions([]);
-        
+
         try {
             const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&fetchLive=true`);
             const json = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(json?.error?.message || "Keine Ergebnisse");
-            
+
             const result: SearchResult = {
                 slug: json.slug,
                 canonicalTitle: json.canonicalTitle,
                 source: json.source,
                 imageUrl: json.imageUrl
             };
-            
+
             setLastResult(result);
             onSearchComplete?.(result);
-            
+
             const target = `/anime/${result.slug}`;
             if (location.pathname === target) {
                 navigate(`${target}?t=${Date.now()}`, { replace: true });
@@ -120,7 +120,7 @@ export default function SearchBar({ onSearchComplete }: SearchBarProps) {
         switch (e.key) {
             case "ArrowDown":
                 e.preventDefault();
-                setSelectedIndex(prev => 
+                setSelectedIndex(prev =>
                     prev < suggestions.length - 1 ? prev + 1 : prev
                 );
                 break;
@@ -159,11 +159,11 @@ export default function SearchBar({ onSearchComplete }: SearchBarProps) {
 
     const getSourceBadge = () => {
         if (!lastResult) return null;
-        
+
         const isLocal = lastResult.source === 'db';
         return (
             <div className={`search-source-badge ${isLocal ? 'local' : 'live'}`}>
-                {isLocal ? '🗄️ Local (MongoDB)' : '🌐 Live (Aniworld)'}
+                {isLocal ? '🗄️ Local (Strapi CMS)' : '🌐 Live (Aniworld)'}
             </div>
         );
     };
@@ -183,7 +183,7 @@ export default function SearchBar({ onSearchComplete }: SearchBarProps) {
                 />
                 {searching && <div className="search-loading">🔄</div>}
             </div>
-            
+
             {/* Autocomplete Dropdown */}
             {showSuggestions && suggestions.length > 0 && (
                 <div className="search-suggestions">
@@ -194,8 +194,8 @@ export default function SearchBar({ onSearchComplete }: SearchBarProps) {
                             onClick={() => runSearch(suggestion.canonicalTitle)}
                         >
                             {suggestion.imageUrl && (
-                                <img 
-                                    src={suggestion.imageUrl} 
+                                <img
+                                    src={suggestion.imageUrl}
                                     alt={suggestion.canonicalTitle}
                                     className="search-suggestion__image"
                                 />
@@ -207,7 +207,7 @@ export default function SearchBar({ onSearchComplete }: SearchBarProps) {
                     ))}
                 </div>
             )}
-            
+
             {lastResult && getSourceBadge()}
         </div>
     );
